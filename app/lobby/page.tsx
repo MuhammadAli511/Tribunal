@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConversationProvider } from "@elevenlabs/react";
 import { MicButton } from "@/components/shared/MicButton";
 import { AgentBadge } from "@/components/shared/AgentBadge";
 import { AudioWaveform } from "@/components/court/AudioWaveform";
@@ -12,20 +13,20 @@ import { useConvAI } from "@/hooks/useConvAI";
 import { MicOff } from "lucide-react";
 import type { Clarification } from "@/src/types";
 
-const JUDGE_PROMPT = `You are the Judge in a decision tribunal. A person is about to tell you about a decision they are considering.
+const JUDGE_PROMPT = `You are the Judge in a decision tribunal gathering information about a decision someone is considering.
 
-Listen carefully, then ask exactly 2-3 short clarifying questions to understand:
-- What exactly is the decision
-- What are the stakes (what happens if it goes wrong)
-- Any constraints, deadlines, or who else is affected
+IMPORTANT RULES — follow them in strict order:
 
-Rules:
-- Ask ONE question at a time, then WAIT for the answer
-- Keep each question to ONE sentence
-- After you have asked 3 questions total, say EXACTLY: "Thank you. The court has enough information. Please submit your case."
-- Do NOT keep asking beyond 3 questions
-- Do NOT give advice or instructions — you are only gathering information
-- After saying "submit your case" do NOT speak again no matter what the user says`;
+1. WAIT for the user to state their decision. Accept it as-is. Do NOT restate or clarify it.
+
+2. You MUST ask exactly 3 follow-up questions, ONE at a time. Wait for the user to answer each question before asking the next. Questions should cover:
+   - What are the risks if this goes wrong?
+   - Are there deadlines, constraints, or budget considerations?
+   - Who else is affected by this decision?
+
+3. ONLY after you have asked all 3 questions AND received all 3 answers, call the end_intake tool. Do NOT call end_intake before asking and receiving answers to all 3 questions. The user stating their decision does NOT count as an answer.
+
+4. NEVER call end_intake early. If you are unsure whether you have enough information, ask another question instead of calling end_intake.`;
 
 const JUDGE_FIRST_MESSAGE =
   "The court is now in session. Please state the decision you are considering.";
@@ -33,24 +34,33 @@ const JUDGE_FIRST_MESSAGE =
 type LobbyPhase = "idle" | "speaking" | "ready";
 
 export default function LobbyPage() {
+  return (
+    <ConversationProvider>
+      <LobbyContent />
+    </ConversationProvider>
+  );
+}
+
+function LobbyContent() {
   const router = useRouter();
   const [transcript, setTranscript] = useState("");
+  const [greeting, setGreeting] = useState("");
   const [clarifications, setClarifications] = useState<Clarification[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phase, setPhase] = useState<LobbyPhase>("idle");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Track message counts to handle the greeting correctly
+  const agentMsgCount = useRef(0);
+  const userMsgCount = useRef(0);
   const clarificationsRef = useRef(clarifications);
   clarificationsRef.current = clarifications;
 
   const handleAgentResponse = useCallback((text: string) => {
-    // Detect when the Judge is done asking questions
-    const lower = text.toLowerCase();
-    if (
-      lower.includes("submit your case") ||
-      lower.includes("enough information") ||
-      lower.includes("court has enough")
-    ) {
-      setPhase("ready");
+    agentMsgCount.current++;
+    // First agent message is the greeting — show it but don't add as clarification
+    if (agentMsgCount.current === 1) {
+      setGreeting(text);
       return;
     }
 
@@ -61,27 +71,49 @@ export default function LobbyPage() {
   }, []);
 
   const handleUserTranscript = useCallback((text: string) => {
-    const current = clarificationsRef.current;
-    if (current.length === 0) {
-      setTranscript((prev) => (prev ? prev + " " + text : text));
-    } else {
-      setClarifications((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last && !last.answer) {
-          updated[updated.length - 1] = { ...last, answer: text };
-        }
-        return updated;
-      });
+    userMsgCount.current++;
+
+    // First user message is always the case statement
+    if (userMsgCount.current === 1) {
+      setTranscript(text);
+      return;
     }
+
+    // Subsequent messages → answer the latest unanswered clarification
+    setClarifications((prev) => {
+      const updated = [...prev];
+      const unansweredIdx = updated.findIndex((c) => !c.answer);
+      if (unansweredIdx !== -1) {
+        updated[unansweredIdx] = { ...updated[unansweredIdx], answer: text };
+      }
+      return updated;
+    });
   }, []);
 
-  const { status, isSpeaking, connectionError, endSession } = useConvAI({
+  // Client tool: the Judge calls this when intake is complete
+  const clientTools = useMemo(
+    () => ({
+      end_intake: async () => {
+        // Delay phase change so pending onMessage callbacks can fire
+        setTimeout(() => setPhase("ready"), 1500);
+        return "Intake complete. Session ending.";
+      },
+    }),
+    [],
+  );
+
+  const handleDisconnect = useCallback(() => {
+    setPhase((prev) => (prev === "ready" ? "ready" : "idle"));
+  }, []);
+
+  const { status, isSpeaking, endSession } = useConvAI({
     enabled: phase === "speaking",
     prompt: JUDGE_PROMPT,
     firstMessage: JUDGE_FIRST_MESSAGE,
+    clientTools,
     onAgentResponse: handleAgentResponse,
     onUserTranscript: handleUserTranscript,
+    onDisconnect: handleDisconnect,
   });
 
   // Auto-end ConvAI session when phase becomes "ready"
@@ -150,7 +182,13 @@ export default function LobbyPage() {
       {/* Scrollable transcript area */}
       <ScrollArea className="flex-1 px-4">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
-          {/* User's case brief */}
+          {greeting && (
+            <div className="flex items-start gap-2">
+              <AgentBadge role="judge" className="shrink-0 mt-0.5" />
+              <p className="text-sm">{greeting}</p>
+            </div>
+          )}
+
           {transcript && (
             <Card className="w-full">
               <CardContent>
@@ -162,7 +200,6 @@ export default function LobbyPage() {
             </Card>
           )}
 
-          {/* Clarification Q&A */}
           {clarifications.map((c, i) => (
             <div key={i} className="flex flex-col gap-1.5">
               <div className="flex items-start gap-2">
@@ -183,34 +220,43 @@ export default function LobbyPage() {
       {/* Fixed bottom controls */}
       <div className="shrink-0 border-t bg-background/80 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 px-4 py-4">
-          {/* Ready state — prominent submit */}
-          {phase === "ready" && transcript ? (
+          {phase === "ready" ? (
             <div className="flex w-full flex-col items-center gap-3">
               <p className="text-sm font-medium text-foreground">
-                The court has enough information.
+                {transcript
+                  ? "The court has enough information."
+                  : "Session ended. Tap the mic to try again."}
               </p>
-              <Button
-                size="lg"
-                className="w-full text-base"
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-              >
-                {isSubmitting
-                  ? "Submitting to the Court..."
-                  : "Submit to the Court"}
-              </Button>
+              {transcript ? (
+                <Button
+                  size="lg"
+                  className="w-full text-base"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting
+                    ? "Submitting to the Court..."
+                    : "Submit to the Court"}
+                </Button>
+              ) : null}
               <button
                 type="button"
-                onClick={() => setPhase("speaking")}
+                onClick={() => {
+                  setPhase("idle");
+                  setTranscript("");
+                  setGreeting("");
+                  setClarifications([]);
+                  agentMsgCount.current = 0;
+                  userMsgCount.current = 0;
+                }}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
               >
-                Continue speaking
+                Start over
               </button>
             </div>
           ) : (
             <>
               <div className="flex items-center gap-4">
-                {/* Mic toggle */}
                 <MicButton
                   size={phase === "idle" ? "lg" : "default"}
                   isRecording={isSessionLive}
@@ -218,7 +264,6 @@ export default function LobbyPage() {
                   onRelease={() => {}}
                 />
 
-                {/* End session button */}
                 {phase === "speaking" && (
                   <button
                     type="button"
@@ -231,7 +276,6 @@ export default function LobbyPage() {
                 )}
               </div>
 
-              {/* Waveform + status */}
               <AudioWaveform
                 isActive={isSpeaking}
                 barCount={7}
@@ -244,12 +288,9 @@ export default function LobbyPage() {
                     ? isSpeaking
                       ? "The Judge is speaking..."
                       : "Listening — speak your decision"
-                    : status === "error"
-                      ? connectionError || "Connection failed"
-                      : "Tap the mic to begin"}
+                    : "Tap the mic to begin"}
               </p>
 
-              {/* Submit button (visible but secondary when session is live) */}
               {transcript && phase === "speaking" && (
                 <Button
                   variant="outline"

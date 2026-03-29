@@ -63,6 +63,16 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
             ...state,
             arguments: [...state.arguments, event.data],
           };
+        case "speaking":
+          return {
+            ...state,
+            arguments: [...state.arguments, event.data],
+            audioQueue: [
+              ...state.audioQueue,
+              { role: event.data.role, audioBase64: event.audioBase64 },
+            ],
+            speakingRole: state.speakingRole ?? event.data.role,
+          };
         case "audio":
           return {
             ...state,

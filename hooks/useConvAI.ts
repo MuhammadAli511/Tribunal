@@ -1,67 +1,67 @@
 "use client";
 
 import { useConversation } from "@elevenlabs/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
+
+type ClientToolHandler = (parameters: Record<string, unknown>) => Promise<string | void> | string | void;
 
 interface UseConvAIOptions {
-  /** Whether the session should be active */
   enabled: boolean;
-  /** Custom system prompt for the Judge agent */
   prompt?: string;
-  /** First message the Judge speaks */
   firstMessage?: string;
-  /** Called when the agent speaks (full message) */
+  /** Client-side tools the agent can invoke */
+  clientTools?: Record<string, ClientToolHandler>;
   onAgentResponse?: (text: string) => void;
-  /** Called when the user's speech is transcribed (full message) */
   onUserTranscript?: (text: string) => void;
+  onDisconnect?: () => void;
 }
-
-type ConvAIStatus = "idle" | "connecting" | "connected" | "error";
 
 export function useConvAI({
   enabled,
   prompt,
   firstMessage,
+  clientTools,
   onAgentResponse,
   onUserTranscript,
+  onDisconnect: onDisconnectProp,
 }: UseConvAIOptions) {
-  const [status, setStatus] = useState<ConvAIStatus>("idle");
-  const [connectionError, setConnectionError] = useState<string | null>(null);
   const startedRef = useRef(false);
   const onAgentRef = useRef(onAgentResponse);
   const onUserRef = useRef(onUserTranscript);
+  const onDisconnectRef = useRef(onDisconnectProp);
   onAgentRef.current = onAgentResponse;
   onUserRef.current = onUserTranscript;
+  onDisconnectRef.current = onDisconnectProp;
 
   const overrides = prompt
     ? {
         agent: {
           prompt: { prompt },
+          firstMessage: firstMessage ?? undefined,
           language: "en" as const,
-          ...(firstMessage ? { firstMessage } : {}),
         },
       }
     : undefined;
 
   const conversation = useConversation({
     overrides,
+    clientTools,
     onConnect: () => {
-      setStatus("connected");
-      setConnectionError(null);
+      console.log("[ConvAI] connected");
     },
     onDisconnect: () => {
-      setStatus("idle");
+      console.log("[ConvAI] disconnected");
       startedRef.current = false;
+      onDisconnectRef.current?.();
     },
-    onError: (message: string) => {
-      console.error("ConvAI error:", message);
-      setConnectionError(message);
-      setStatus("error");
+    onError: (error) => {
+      console.error("[ConvAI] error:", error);
     },
     onMessage: (message) => {
+      console.log("[ConvAI] message:", message.role, message.message);
       if (message.role === "agent") {
         onAgentRef.current?.(message.message);
-      } else {
+      } else if (message.role === "user") {
         onUserRef.current?.(message.message);
       }
     },
@@ -72,7 +72,6 @@ export function useConvAI({
     startedRef.current = true;
 
     try {
-      setStatus("connecting");
       await navigator.mediaDevices.getUserMedia({ audio: true });
 
       const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID;
@@ -80,16 +79,10 @@ export function useConvAI({
         throw new Error("NEXT_PUBLIC_ELEVENLABS_AGENT_ID is not set");
       }
 
-      await conversation.startSession({
-        agentId,
-        connectionType: "webrtc",
-      });
+      await conversation.startSession({ agentId });
     } catch (err) {
       startedRef.current = false;
-      setStatus("error");
-      setConnectionError(
-        err instanceof Error ? err.message : "Failed to start session",
-      );
+      console.error("[ConvAI] start failed:", err);
     }
   }, [conversation]);
 
@@ -98,7 +91,6 @@ export function useConvAI({
     startedRef.current = false;
   }, [conversation]);
 
-  // Auto-start/stop based on enabled flag
   useEffect(() => {
     if (enabled) {
       startSession();
@@ -108,8 +100,7 @@ export function useConvAI({
   }, [enabled, startSession, endSession]);
 
   return {
-    status,
-    connectionError,
+    status: conversation.status,
     isSpeaking: conversation.isSpeaking,
     startSession,
     endSession,

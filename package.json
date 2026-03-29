@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.40.0",
-    "@elevenlabs/react": "^0.14.3",
+    "@elevenlabs/react": "^1.0.0",
     "@opennextjs/cloudflare": "^1.18.0",
     "agents": "^0.8.7",
     "class-variance-authority": "^0.7.1",

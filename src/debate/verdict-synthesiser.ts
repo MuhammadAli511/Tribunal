@@ -1,4 +1,5 @@
 import type { Argument, CaseBrief, Clarification, Ruling, Verdict } from "../types";
+import { extractAIText } from "./argument-generator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,11 +18,11 @@ interface RawVerdictOutput {
 
 // ── Model & Prompt ──────────────────────────────────────────────────────────
 
-const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as const;
+const MODEL = "@cf/openai/gpt-oss-120b" as const;
 
 const SYSTEM_PROMPT = `You are the Judge in a decision tribunal. You have heard all arguments and must now deliver your verdict.
 
-Analyse the decision under review, the clarifications from the decision-maker, and all arguments presented by the prosecution, defence, domain expert, and historian.
+Analyse the decision, the clarifications, and all arguments from prosecution, defence, domain expert, and historian.
 
 You MUST respond with ONLY a valid JSON object (no markdown, no commentary) matching this exact schema:
 
@@ -29,32 +30,33 @@ You MUST respond with ONLY a valid JSON object (no markdown, no commentary) matc
   "ruling": "proceed" | "do-not-proceed" | "conditional",
   "keyFactors": ["factor 1", "factor 2"],
   "conditions": ["what would need to change for the ruling to flip"],
-  "dissent": "what the losing side got right — acknowledge their strongest point"
+  "dissent": "what the losing side got right"
 }
 
 Rules:
 - "ruling" must be exactly one of: "proceed", "do-not-proceed", "conditional"
-- "keyFactors" must contain 2-3 strings — the decisive arguments or facts
-- "conditions" must contain 1-3 strings — what would change the ruling
-- "dissent" must be a single string acknowledging the strongest opposing point
-- Be fair, balanced, and decisive. Do not hedge.`;
+- "keyFactors" must contain 2-3 SHORT plain-text strings. No markdown or special characters.
+- "conditions" must contain 1-3 SHORT plain-text strings. No markdown or special characters.
+- "dissent" must be one short plain-text sentence. No markdown or special characters.
+- All strings will be read aloud, so write them as natural spoken English.
+- Be fair, balanced, and decisive.`;
 
 function buildVerdictPrompt(input: VerdictInput): string {
-  let prompt = `## The Decision Under Review\n${input.brief.text}\n`;
+  let prompt = `The Decision Under Review:\n${input.brief.text}\n`;
 
   if (input.clarifications.length > 0) {
-    prompt += `\n## Clarifications from the Decision-Maker\n`;
+    prompt += `\nClarifications from the Decision-Maker:\n`;
     for (const c of input.clarifications) {
-      prompt += `- **Q:** ${c.question}\n  **A:** ${c.answer}\n`;
+      prompt += `Q: ${c.question}\nA: ${c.answer}\n`;
     }
   }
 
-  prompt += `\n## All Arguments Presented\n`;
+  prompt += `\nAll Arguments Presented:\n`;
   for (const arg of input.allArguments) {
-    prompt += `### ${arg.role.toUpperCase()} (Round ${arg.round})\n${arg.text}\n\n`;
+    prompt += `${arg.role.toUpperCase()} (Round ${arg.round}):\n${arg.text}\n\n`;
   }
 
-  prompt += `\n## Your Task\nDeliver your verdict as a JSON object.`;
+  prompt += `\nYour Task: Deliver your verdict as a JSON object.`;
   return prompt;
 }
 
@@ -69,15 +71,17 @@ export async function synthesiseVerdict(
   input: VerdictInput,
 ): Promise<Verdict> {
   const response = await ai.run(MODEL, {
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: buildVerdictPrompt(input) },
-    ],
-    max_tokens: 1024,
+    instructions: SYSTEM_PROMPT,
+    input: buildVerdictPrompt(input),
+    max_tokens: 400,
     temperature: 0.3,
-  });
+    reasoning: { effort: "low" },
+  } as Record<string, unknown>);
 
-  const raw = (response as { response: string }).response;
+  // Extract text from Workers AI response (handles ChatCompletion / standard / string)
+  const raw = extractAIText(response);
+
+  console.log("[Verdict] raw AI response length:", raw.length, "preview:", raw.slice(0, 200));
 
   // Parse JSON from the response — handle potential markdown fencing
   const jsonStr = raw.replace(/^```json?\s*/, "").replace(/\s*```$/, "").trim();
@@ -91,9 +95,9 @@ export async function synthesiseVerdict(
 
   return {
     ruling: parsed.ruling,
-    keyFactors: parsed.keyFactors.slice(0, 3),
-    conditions: parsed.conditions.slice(0, 3),
-    dissent: parsed.dissent,
+    keyFactors: (parsed.keyFactors ?? []).slice(0, 3),
+    conditions: (parsed.conditions ?? []).slice(0, 3),
+    dissent: parsed.dissent ?? "",
     createdAt: new Date().toISOString(),
   };
 }

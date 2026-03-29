@@ -10,34 +10,43 @@ import { Badge } from "@/components/ui/badge";
 import { useCaseSession } from "@/hooks/useCaseSession";
 import { useDebateFeed } from "@/hooks/useDebateFeed";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
-import type { AgentRole, DebateEvent } from "@/src/types";
+import type { AgentRole } from "@/src/types";
 
 export default function CourtroomPage() {
   const params = useParams<{ caseId: string }>();
   const router = useRouter();
   const caseId = params.caseId;
 
-  // Debate feed (SSE) — accumulates state
   const feed = useDebateFeed({ caseId });
-
-  // WebSocket — for bidirectional communication
   const { send } = useCaseSession({
     caseId,
-    onEvent: feed.handleEvent,
+    onEvent: (event) => {
+      console.log("[WS] event received:", event.type, event);
+      feed.handleEvent(event);
+    },
   });
 
-  // Audio player — queues and plays TTS audio
-  const audio = useAudioPlayer({ onItemPlayed: feed.markAudioPlayed });
+  const audio = useAudioPlayer({
+    onItemPlayed: () => {
+      console.log("[Audio] item finished playing");
+      feed.markAudioPlayed();
+    },
+  });
 
   // Enqueue audio from the feed
   useEffect(() => {
     if (feed.audioQueue.length > 0) {
       const latest = feed.audioQueue[feed.audioQueue.length - 1];
+      console.log("[Audio] enqueuing TTS for:", latest.role, "base64 length:", latest.audioBase64.length);
       audio.enqueue(latest.role, latest.audioBase64);
     }
-    // Only trigger when queue length changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feed.audioQueue.length]);
+
+  // Log state changes
+  useEffect(() => {
+    console.log("[Feed] status:", feed.status, "args:", feed.arguments.length, "audio queue:", feed.audioQueue.length, "verdict:", !!feed.verdict, "error:", feed.error);
+  }, [feed.status, feed.arguments.length, feed.audioQueue.length, feed.verdict, feed.error]);
 
   // Cross-exam state
   const [crossExamOpen, setCrossExamOpen] = useState(false);
@@ -45,30 +54,23 @@ export default function CourtroomPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [userTranscript, setUserTranscript] = useState("");
 
-  // Listen for cross-exam clarification events
   useEffect(() => {
     const lastClarification = feed.clarifications[feed.clarifications.length - 1];
-    if (
-      lastClarification &&
-      !lastClarification.answer &&
-      feed.status === "cross-exam"
-    ) {
+    if (lastClarification && !lastClarification.answer && feed.status === "cross-exam") {
+      console.log("[CrossExam] opening dialog:", lastClarification.question);
       setCrossExamQuestion(lastClarification.question);
       setCrossExamOpen(true);
     }
   }, [feed.clarifications, feed.status]);
 
-  // Navigate to verdict page when verdict is delivered
   useEffect(() => {
     if (feed.verdict) {
-      const timer = setTimeout(() => {
-        router.push(`/verdict/${caseId}`);
-      }, 3000); // Short delay to let verdict TTS finish
+      console.log("[Verdict] received, navigating in 3s:", feed.verdict);
+      const timer = setTimeout(() => router.push(`/verdict/${caseId}`), 3000);
       return () => clearTimeout(timer);
     }
   }, [feed.verdict, caseId, router]);
 
-  // Get latest argument per agent for the panels
   const latestArgByRole = (role: AgentRole): string | undefined => {
     const args = feed.arguments.filter((a) => a.role === role);
     return args[args.length - 1]?.text;
@@ -76,6 +78,7 @@ export default function CourtroomPage() {
 
   const handleCrossExamSubmit = useCallback(
     (response: string) => {
+      console.log("[CrossExam] submitting response:", response);
       fetch(`/api/cases/${caseId}/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -88,11 +91,11 @@ export default function CourtroomPage() {
   );
 
   return (
-    <div className="flex min-h-svh">
+    <div className="flex h-svh overflow-hidden">
       {/* Main courtroom area */}
-      <div className="flex flex-1 flex-col gap-4 p-4">
+      <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4">
         {/* Status bar */}
-        <div className="flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between">
           <h1 className="text-lg font-semibold">The Tribunal</h1>
           <Badge variant={feed.status === "deliberating" ? "secondary" : "outline"}>
             {feed.status === "intake" && "Intake"}
@@ -103,55 +106,54 @@ export default function CourtroomPage() {
           </Badge>
         </div>
 
-        {/* Courtroom grid */}
-        <CourtroomLayout
-          className="flex-1"
-          prosecutor={
-            <AgentPanel
-              role="prosecutor"
-              argumentText={latestArgByRole("prosecutor")}
-              isSpeaking={audio.currentRole === "prosecutor"}
-            />
-          }
-          defender={
-            <AgentPanel
-              role="defender"
-              argumentText={latestArgByRole("defender")}
-              isSpeaking={audio.currentRole === "defender"}
-            />
-          }
-          expert={
-            <AgentPanel
-              role="domain-expert"
-              argumentText={latestArgByRole("domain-expert")}
-              isSpeaking={audio.currentRole === "domain-expert"}
-            />
-          }
-          historian={
-            <AgentPanel
-              role="historian"
-              argumentText={latestArgByRole("historian")}
-              isSpeaking={audio.currentRole === "historian"}
-            />
-          }
-          judge={
-            <AgentPanel
-              role="judge"
-              argumentText={crossExamQuestion || undefined}
-              isSpeaking={audio.currentRole === "judge"}
-            />
-          }
-        />
+        {/* Courtroom grid — scrollable */}
+        <div className="flex-1 overflow-y-auto">
+          <CourtroomLayout
+            prosecutor={
+              <AgentPanel
+                role="prosecutor"
+                argumentText={latestArgByRole("prosecutor")}
+                isSpeaking={audio.currentRole === "prosecutor"}
+              />
+            }
+            defender={
+              <AgentPanel
+                role="defender"
+                argumentText={latestArgByRole("defender")}
+                isSpeaking={audio.currentRole === "defender"}
+              />
+            }
+            expert={
+              <AgentPanel
+                role="domain-expert"
+                argumentText={latestArgByRole("domain-expert")}
+                isSpeaking={audio.currentRole === "domain-expert"}
+              />
+            }
+            historian={
+              <AgentPanel
+                role="historian"
+                argumentText={latestArgByRole("historian")}
+                isSpeaking={audio.currentRole === "historian"}
+              />
+            }
+            judge={
+              <AgentPanel
+                role="judge"
+                argumentText={latestArgByRole("judge") || crossExamQuestion || undefined}
+                isSpeaking={audio.currentRole === "judge"}
+              />
+            }
+          />
+        </div>
       </div>
 
-      {/* Transcript sidebar */}
-      <div className="hidden w-80 border-l lg:block">
-        <div className="flex h-full flex-col">
-          <div className="border-b px-4 py-3">
-            <h2 className="text-sm font-medium">Transcript</h2>
-          </div>
-          <ArgumentFeed arguments={feed.arguments} className="flex-1" />
+      {/* Transcript sidebar — fixed height, scrollable */}
+      <div className="hidden w-80 border-l lg:flex lg:flex-col">
+        <div className="shrink-0 border-b px-4 py-3">
+          <h2 className="text-sm font-medium">Transcript</h2>
         </div>
+        <ArgumentFeed arguments={feed.arguments} className="flex-1 min-h-0" />
       </div>
 
       {/* Cross-examination dialog */}

@@ -360,6 +360,15 @@ export default {
       return corsResponse(new Response(null, { status: 204 }));
     }
 
+    // WebSocket upgrades — must NOT go through corsResponse (status 101)
+    if (request.headers.get("Upgrade") === "websocket") {
+      const wsMatch = matchRoute(url.pathname, "/api/cases/:id/ws");
+      if (wsMatch) {
+        return handleWebSocket(request, env, wsMatch.params.id);
+      }
+      return new Response("Not found", { status: 404 });
+    }
+
     // API routes — handled by our router
     if (url.pathname.startsWith("/api/")) {
       const response = await handleApi(request, env, url);

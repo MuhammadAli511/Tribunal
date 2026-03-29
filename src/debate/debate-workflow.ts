@@ -50,6 +50,7 @@ async function callDO(
 export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
   async run(event: WorkflowEvent<DebateParams>, step: WorkflowStep) {
     const { caseId } = event.payload;
+    console.log("[Workflow] starting debate for case:", caseId);
 
     // ── Stubs & config ─────────────────────────────────────────────────────
     const caseDO = this.env.CASE_DO.get(this.env.CASE_DO.idFromString(caseId));
@@ -60,13 +61,32 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
     const historianDO = this.env.HISTORIAN_DO.get(this.env.HISTORIAN_DO.idFromName("historian"));
     const apiKey = this.env.ELEVENLABS_API_KEY;
 
-    // TTS helper — synthesise speech and broadcast audio to connected clients
+    // Generate TTS and broadcast argument + audio together so text appears
+    // on screen only when the persona starts speaking.
+    const speakArgument = async (arg: Argument) => {
+      try {
+        console.log("[TTS] synthesising for", arg.role, "text length:", arg.text.length);
+        const audioBase64 = await synthesiseSpeechBase64(apiKey, arg.text, arg.role);
+        console.log("[TTS] got audio for", arg.role, "base64 length:", audioBase64.length);
+        await callDO(caseDO, "POST", "/broadcast-speaking", { argument: arg, audioBase64 });
+        console.log("[TTS] broadcast done for", arg.role);
+      } catch (err) {
+        console.error("[TTS] FAILED for", arg.role, err);
+        // Fallback: broadcast argument without audio so the text still shows
+        await callDO(caseDO, "POST", "/argument", {
+          role: arg.role, round: arg.round, text: arg.text, rebuttalTargetId: arg.rebuttalTargetId,
+        }).catch(() => {});
+      }
+    };
+
+    // TTS-only helper for judge text that doesn't come from an Argument
     const speakAs = async (text: string, role: AgentRole) => {
       try {
+        console.log("[TTS] synthesising for", role, "text length:", text.length);
         const audioBase64 = await synthesiseSpeechBase64(apiKey, text, role);
         await callDO(caseDO, "POST", "/broadcast-audio", { role, audioBase64 });
-      } catch {
-        // TTS failure is non-fatal — argument text is still delivered
+      } catch (err) {
+        console.error("[TTS] FAILED for", role, err);
       }
     };
 
@@ -89,6 +109,7 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
     };
 
     // ── Step 2: Domain Expert argues ──────────────────────────────────────
+    console.log("[Workflow] case loaded, brief length:", brief.text.length, "clarifications:", clarifications.length);
 
     const expertArg = await step.do("domain-expert-argue", async () => {
       const arg = (await callDO(expertDO, "POST", "/argue", {
@@ -96,17 +117,16 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
         caseCtx: baseCaseCtx,
       })) as Argument;
 
-      // Post argument to CaseDO for storage + broadcast
-      await callDO(caseDO, "POST", "/argument", {
-        role: arg.role,
-        round: arg.round,
-        text: arg.text,
+      await callDO(caseDO, "POST", "/argument-silent", {
+        role: arg.role, round: arg.round, text: arg.text,
       });
 
       return arg;
     });
 
-    await step.do("tts-domain-expert", () => speakAs(expertArg.text, "domain-expert"));
+    console.log("[Workflow] expert done, arg length:", expertArg.text.length);
+    await step.do("tts-domain-expert", () => speakArgument(expertArg));
+    console.log("[Workflow] tts-expert done");
 
     // ── Step 3: Defender argues ───────────────────────────────────────────
 
@@ -121,16 +141,15 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
         caseCtx: ctx,
       })) as Argument;
 
-      await callDO(caseDO, "POST", "/argument", {
-        role: arg.role,
-        round: arg.round,
-        text: arg.text,
+      await callDO(caseDO, "POST", "/argument-silent", {
+        role: arg.role, round: arg.round, text: arg.text,
       });
 
       return arg;
     });
 
-    await step.do("tts-defender", () => speakAs(defenderArg.text, "defender"));
+    console.log("[Workflow] defender done");
+    await step.do("tts-defender", () => speakArgument(defenderArg));
 
     // ── Step 4: Prosecutor argues ─────────────────────────────────────────
 
@@ -145,16 +164,15 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
         caseCtx: ctx,
       })) as Argument;
 
-      await callDO(caseDO, "POST", "/argument", {
-        role: arg.role,
-        round: arg.round,
-        text: arg.text,
+      await callDO(caseDO, "POST", "/argument-silent", {
+        role: arg.role, round: arg.round, text: arg.text,
       });
 
       return arg;
     });
 
-    await step.do("tts-prosecutor", () => speakAs(prosecutorArg.text, "prosecutor"));
+    console.log("[Workflow] prosecutor done");
+    await step.do("tts-prosecutor", () => speakArgument(prosecutorArg));
 
     // ── Step 5: Historian argues ──────────────────────────────────────────
 
@@ -169,27 +187,19 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
         caseCtx: ctx,
       })) as Argument;
 
-      await callDO(caseDO, "POST", "/argument", {
-        role: arg.role,
-        round: arg.round,
-        text: arg.text,
+      await callDO(caseDO, "POST", "/argument-silent", {
+        role: arg.role, round: arg.round, text: arg.text,
       });
 
       return arg;
     });
 
-    await step.do("tts-historian", () => speakAs(historianArg.text, "historian"));
+    console.log("[Workflow] historian done");
+    await step.do("tts-historian", () => speakArgument(historianArg));
 
     // ── Step 6: Judge cross-examines the user ─────────────────────────────
 
-    const crossExamQuestion = await step.do("judge-cross-examine", async () => {
-      // Update status to cross-exam
-      await callDO(caseDO, "POST", "/argument", {
-        role: "judge" as const,
-        round,
-        text: "", // placeholder — the real question goes via cross-exam
-      }).catch(() => {}); // ignore if this fails
-
+    const { crossExamQuestion, judgeArg } = await step.do("judge-cross-examine", async () => {
       const result = (await callDO(judgeDO, "POST", "/cross-examine", {
         caseId,
         brief,
@@ -198,23 +208,31 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
         defenderArgument: defenderArg,
       })) as { question: string };
 
-      // Store cross-exam as a clarification on CaseDO and broadcast
+      // Save silently — text will appear when TTS plays
+      const arg = (await callDO(caseDO, "POST", "/argument-silent", {
+        role: "judge" as const,
+        round,
+        text: result.question,
+      })) as Argument;
+
       const crossExamIndex = clarifications.length + 1;
       await callDO(caseDO, "POST", "/clarify", {
         index: crossExamIndex,
         question: result.question,
-        answer: "", // pending user response
+        answer: "",
       });
 
-      return result.question;
+      return { crossExamQuestion: result.question, judgeArg: arg };
     });
 
-    await step.do("tts-cross-exam", () => speakAs(crossExamQuestion, "judge"));
+    console.log("[Workflow] cross-exam question:", crossExamQuestion);
+    await step.do("tts-cross-exam", () => speakArgument(judgeArg));
 
     // ── Step 7: Wait for user response ────────────────────────────────────
     // The client will post the user's response to CaseDO via /user-response.
     // We sleep and then check if a response arrived.
 
+    console.log("[Workflow] waiting 2min for user response...");
     await step.sleep("wait-for-user-response", "2 minutes");
 
     const userResponse = await step.do("check-user-response", async () => {
@@ -223,6 +241,8 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
       const round1 = record.rounds.find((r) => r.round === 1);
       return round1?.userResponse ?? null;
     });
+
+    console.log("[Workflow] user response:", userResponse);
 
     // ── Step 8: Prosecutor rebuttal (round 2) ─────────────────────────────
 
@@ -244,17 +264,15 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
         rebuttalTargetId: defenderArg.id,
       })) as Argument;
 
-      await callDO(caseDO, "POST", "/argument", {
-        role: arg.role,
-        round: arg.round,
-        text: arg.text,
-        rebuttalTargetId: defenderArg.id,
+      await callDO(caseDO, "POST", "/argument-silent", {
+        role: arg.role, round: arg.round, text: arg.text, rebuttalTargetId: defenderArg.id,
       });
 
       return arg;
     });
 
-    await step.do("tts-prosecutor-rebuttal", () => speakAs(prosecutorRebuttal.text, "prosecutor"));
+    console.log("[Workflow] prosecutor rebuttal done");
+    await step.do("tts-prosecutor-rebuttal", () => speakArgument(prosecutorRebuttal));
 
     // ── Step 9: Judge synthesises verdict ──────────────────────────────────
 
@@ -280,6 +298,8 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
 
       return v;
     });
+
+    console.log("[Workflow] verdict:", verdict.ruling);
 
     // Speak the verdict aloud as the Judge
     await step.do("tts-verdict", async () => {

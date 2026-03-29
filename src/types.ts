@@ -91,6 +91,7 @@ export type DebateEvent =
   | { type: "status_change"; status: SessionStatus }
   | { type: "clarification"; data: Clarification }
   | { type: "argument"; data: Argument }
+  | { type: "speaking"; data: Argument; audioBase64: string }
   | { type: "audio"; role: AgentRole; audioBase64: string }
   | { type: "user_response"; round: number; text: string }
   | { type: "verdict"; data: Verdict }

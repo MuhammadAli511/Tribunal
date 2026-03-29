@@ -40,6 +40,10 @@ export class CaseDO extends DurableObject<Env> {
         return this.handleClarify(request);
       case "POST /argument":
         return this.handleArgument(request);
+      case "POST /argument-silent":
+        return this.handleArgumentSilent(request);
+      case "POST /broadcast-speaking":
+        return this.handleBroadcastSpeaking(request);
       case "POST /user-response":
         return this.handleUserResponse(request);
       case "POST /verdict":
@@ -84,6 +88,27 @@ export class CaseDO extends DurableObject<Env> {
 
     this.broadcast({ type: "argument", data: arg });
     return json(arg);
+  }
+
+  private async handleArgumentSilent(request: Request): Promise<Response> {
+    const body = (await request.json()) as Omit<Argument, "id" | "createdAt">;
+    const arg = this.store.saveArgument(body);
+
+    if (this.store.getStatus() === "intake") {
+      this.store.setStatus("debating");
+      this.broadcast({ type: "status_change", status: "debating" });
+    }
+
+    return json(arg);
+  }
+
+  private async handleBroadcastSpeaking(request: Request): Promise<Response> {
+    const { argument, audioBase64 } = (await request.json()) as {
+      argument: Argument;
+      audioBase64: string;
+    };
+    this.broadcast({ type: "speaking", data: argument, audioBase64 });
+    return json({ ok: true });
   }
 
   private async handleUserResponse(request: Request): Promise<Response> {

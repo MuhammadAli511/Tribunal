@@ -1,8 +1,9 @@
 import type { Argument, CaseBrief, Clarification } from "../types";
+import { extractAIText, sanitizeForSpeech } from "./argument-generator";
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
-const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as const;
+const MODEL = "@cf/openai/gpt-oss-120b" as const;
 
 // ── Intake clarifying questions ─────────────────────────────────────────────
 
@@ -33,15 +34,14 @@ export async function generateClarifyingQuestions(
   brief: CaseBrief,
 ): Promise<string[]> {
   const response = await ai.run(MODEL, {
-    messages: [
-      { role: "system", content: INTAKE_SYSTEM_PROMPT },
-      { role: "user", content: brief.text },
-    ],
+    instructions: INTAKE_SYSTEM_PROMPT,
+    input: brief.text,
     max_tokens: 512,
     temperature: 0.5,
-  });
+    reasoning: { effort: "low" },
+  } as Record<string, unknown>);
 
-  const raw = (response as { response: string }).response;
+  const raw = extractAIText(response);
   const jsonStr = raw.replace(/^```json?\s*/, "").replace(/\s*```$/, "").trim();
 
   try {
@@ -64,10 +64,11 @@ const CROSS_EXAM_SYSTEM_PROMPT = `You are the Judge in a decision tribunal. The 
 Your job is to ask the decision-maker ONE pointed cross-examination question that gets to the heart of the disagreement.
 
 Rules:
-- Ask exactly ONE question
-- The question should address the key tension between the prosecution and defence arguments
-- Be direct and specific
-- Respond with ONLY the question text, nothing else`;
+- Ask exactly ONE question in plain conversational English.
+- The question should address the key tension between the prosecution and defence arguments.
+- Be direct and specific.
+- Respond with ONLY the question text, nothing else.
+- No markdown, no bold, no special characters.`;
 
 /**
  * Generate a cross-examination question based on the tension between
@@ -80,27 +81,26 @@ export async function generateCrossExamQuestion(
   prosecutorArgument: Argument,
   defenderArgument: Argument,
 ): Promise<string> {
-  let userPrompt = `## The Decision\n${brief.text}\n`;
+  let userPrompt = `The Decision:\n${brief.text}\n`;
 
   if (clarifications.length > 0) {
-    userPrompt += `\n## Prior Clarifications\n`;
+    userPrompt += `\nPrior Clarifications:\n`;
     for (const c of clarifications) {
-      userPrompt += `- Q: ${c.question}\n  A: ${c.answer}\n`;
+      userPrompt += `Q: ${c.question}\nA: ${c.answer}\n`;
     }
   }
 
-  userPrompt += `\n## Prosecution Argument\n${prosecutorArgument.text}`;
-  userPrompt += `\n\n## Defence Argument\n${defenderArgument.text}`;
-  userPrompt += `\n\n## Your Task\nAsk ONE cross-examination question to the decision-maker.`;
+  userPrompt += `\nProsecution Argument:\n${prosecutorArgument.text}`;
+  userPrompt += `\n\nDefence Argument:\n${defenderArgument.text}`;
+  userPrompt += `\n\nYour Task: Ask ONE cross-examination question to the decision-maker.`;
 
   const response = await ai.run(MODEL, {
-    messages: [
-      { role: "system", content: CROSS_EXAM_SYSTEM_PROMPT },
-      { role: "user", content: userPrompt },
-    ],
+    instructions: CROSS_EXAM_SYSTEM_PROMPT,
+    input: userPrompt,
     max_tokens: 256,
     temperature: 0.5,
-  });
+    reasoning: { effort: "low" },
+  } as Record<string, unknown>);
 
-  return (response as { response: string }).response.trim();
+  return sanitizeForSpeech(extractAIText(response));
 }
