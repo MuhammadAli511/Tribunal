@@ -1,10 +1,3 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { RulingBadge } from "@/components/shared/RulingBadge";
 import { cn } from "@/lib/utils";
 import type { Verdict } from "@/src/types";
@@ -16,62 +9,65 @@ interface VerdictCardProps {
 
 export function VerdictCard({ verdict, className }: VerdictCardProps) {
   return (
-    <Card className={cn("max-w-2xl", className)}>
-      {/* Section 1: Ruling */}
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle className="text-lg">Verdict</CardTitle>
+    <div
+      className={cn(
+        "overflow-hidden rounded-[10px] border border-[#1f1e1b] bg-[#1a1917]",
+        className,
+      )}
+    >
+      {/* Ruling header */}
+      <div className="flex items-center justify-between border-b border-[#1f1e1b] px-4 py-3">
+        <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
+          Ruling
+        </span>
         <RulingBadge ruling={verdict.ruling} />
-      </CardHeader>
+      </div>
 
-      <CardContent className="flex flex-col gap-4">
-        {/* Section 2: Key Factors */}
-        <div>
-          <h3 className="mb-2 text-sm font-medium text-foreground">
-            Key Factors
-          </h3>
-          <ul className="space-y-1.5">
-            {verdict.keyFactors.map((factor, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-2 text-sm text-muted-foreground"
-              >
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" />
-                {factor}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {/* Key Factors */}
+      <div className="border-b border-[#1f1e1b] px-4 py-4">
+        <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
+          Key Factors
+        </span>
+        <ul className="mt-2.5 space-y-1.5">
+          {verdict.keyFactors.map((factor, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-2 text-[12px] leading-relaxed text-[#a39e93]"
+            >
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[#a39e93]" />
+              {factor}
+            </li>
+          ))}
+        </ul>
+      </div>
 
-        <Separator />
+      {/* Conditions */}
+      <div className="border-b border-[#1f1e1b] px-4 py-4">
+        <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
+          Conditions for Change
+        </span>
+        <ul className="mt-2.5 space-y-1.5">
+          {verdict.conditions.map((condition, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-2 text-[12px] leading-relaxed text-[#a39e93]"
+            >
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[#e8a830]" />
+              {condition}
+            </li>
+          ))}
+        </ul>
+      </div>
 
-        {/* Section 3: Conditions */}
-        <div>
-          <h3 className="mb-2 text-sm font-medium text-foreground">
-            Conditions for Change
-          </h3>
-          <ul className="space-y-1.5">
-            {verdict.conditions.map((condition, i) => (
-              <li
-                key={i}
-                className="flex items-start gap-2 text-sm text-muted-foreground"
-              >
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500/60" />
-                {condition}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <Separator />
-
-        {/* Section 4: Dissent */}
-        <div>
-          <h3 className="mb-2 text-sm font-medium text-foreground">Dissent</h3>
-          <p className="text-sm italic text-muted-foreground leading-relaxed">
-            &ldquo;{verdict.dissent}&rdquo;
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Dissent */}
+      <div className="px-4 py-4">
+        <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
+          Dissent
+        </span>
+        <p className="mt-2.5 border-l-2 border-[#2a2826] pl-3 text-[12px] italic leading-relaxed text-[#7a756c]">
+          &ldquo;{verdict.dissent}&rdquo;
+        </p>
+      </div>
+    </div>
   );
 }
