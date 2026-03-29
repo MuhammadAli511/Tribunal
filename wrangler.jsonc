@@ -1,0 +1,97 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"main": "src/worker.ts",
+	"name": "tribunal",
+	"compatibility_date": "2025-03-01",
+	"compatibility_flags": [
+		"nodejs_compat",
+		"global_fetch_strictly_public"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "tribunal"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "NEXT_INC_CACHE_R2_BUCKET",
+			"bucket_name": "tribunal-opennext-cache"
+		}
+	],
+	"images": {
+		"binding": "IMAGES"
+	},
+	// ── Workers AI ───────────────────────────────────────────────────────────
+	"ai": {
+		"binding": "AI"
+	},
+	// ── Vectorize (Historian semantic search) ────────────────────────────────
+	"vectorize": [
+		{
+			"binding": "VECTORIZE",
+			"index_name": "tribunal-case-memory"
+		}
+	],
+	// ── Durable Objects ──────────────────────────────────────────────────────
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "CASE_DO",
+				"class_name": "CaseDO"
+			},
+			{
+				"name": "JUDGE_DO",
+				"class_name": "JudgeDO"
+			},
+			{
+				"name": "PROSECUTOR_DO",
+				"class_name": "ProsecutorDO"
+			},
+			{
+				"name": "DEFENDER_DO",
+				"class_name": "DefenderDO"
+			},
+			{
+				"name": "DOMAIN_EXPERT_DO",
+				"class_name": "DomainExpertDO"
+			},
+			{
+				"name": "HISTORIAN_DO",
+				"class_name": "HistorianDO"
+			}
+		]
+	},
+	// ── DO migrations (required for SQLite storage) ──────────────────────────
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"CaseDO",
+				"JudgeDO",
+				"ProsecutorDO",
+				"DefenderDO",
+				"DomainExpertDO",
+				"HistorianDO"
+			]
+		}
+	],
+	// ── Workflows ────────────────────────────────────────────────────────────
+	"workflows": [
+		{
+			"name": "debate-workflow",
+			"binding": "DEBATE_WORKFLOW",
+			"class_name": "DebateWorkflow"
+		}
+	],
+	// ── Secrets (set via `wrangler secret put`) ──────────────────────────────
+	// ELEVENLABS_API_KEY — set in production, read from .env locally
+	// ── Variables ────────────────────────────────────────────────────────────
+	"vars": {
+		"JUDGE_CONVAI_AGENT_ID": ""
+	}
+}
