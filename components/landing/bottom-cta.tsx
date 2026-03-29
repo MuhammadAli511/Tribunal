@@ -12,7 +12,7 @@ export function BottomCta() {
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.5 }}
-        transition={{ duration: 0.6, ease: "easeOut" }}
+        transition={{ duration: 0.6, ease: "easeOut" as const }}
       >
         <h2 className="text-2xl font-bold text-[#ede9e1]">
           Ready to face the court?
