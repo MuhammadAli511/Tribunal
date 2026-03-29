@@ -12,17 +12,6 @@ interface CourtroomLayoutProps {
   className?: string;
 }
 
-/**
- * 5-panel CSS grid in courtroom formation:
- *
- *   ┌────────────┬────────────┐
- *   │ Prosecutor │  Defender  │
- *   ├────────────┼────────────┤
- *   │   Expert   │ Historian  │
- *   ├────────────┴────────────┤
- *   │         Judge           │
- *   └────────────────────────-┘
- */
 export function CourtroomLayout({
   prosecutor,
   defender,
@@ -34,19 +23,14 @@ export function CourtroomLayout({
   return (
     <div
       className={cn(
-        "grid grid-cols-2 grid-rows-[1fr_1fr_auto] gap-3",
+        "grid grid-cols-2 grid-rows-[1fr_1fr_auto] gap-2",
         className,
       )}
     >
-      {/* Top row */}
       <div className="col-start-1 row-start-1">{prosecutor}</div>
       <div className="col-start-2 row-start-1">{defender}</div>
-
-      {/* Middle row */}
       <div className="col-start-1 row-start-2">{expert}</div>
       <div className="col-start-2 row-start-2">{historian}</div>
-
-      {/* Bottom row — Judge spans full width */}
       <div className="col-span-2 row-start-3">{judge}</div>
     </div>
   );

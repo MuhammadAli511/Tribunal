@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { AgentBadge } from "@/components/shared/AgentBadge";
+import { AgentAvatar } from "@/components/shared/AgentAvatar";
 import { cn } from "@/lib/utils";
 import type { Argument } from "@/src/types";
+import { AGENT_LABELS } from "@/src/voice/voice-config";
 
 interface ArgumentFeedProps {
   arguments: Argument[];
@@ -18,38 +18,34 @@ export function ArgumentFeed({
 }: ArgumentFeedProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom when new arguments arrive
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [args.length]);
 
   return (
     <ScrollArea className={cn("h-full", className)}>
-      <div className="flex flex-col gap-3 p-4">
+      <div className="flex flex-col gap-3 p-3">
         {args.length === 0 && (
-          <p className="text-center text-sm italic text-muted-foreground/50 py-8">
+          <p className="py-8 text-center text-[11px] italic text-[#52504a]">
             The debate has not yet begun.
           </p>
         )}
-        {args.map((arg, i) => (
+        {args.map((arg) => (
           <div key={arg.id}>
-            {i > 0 && <Separator className="mb-3" />}
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <AgentBadge role={arg.role} />
-                <span className="text-xs text-muted-foreground">
-                  Round {arg.round}
+            <div className="flex items-center gap-1.5 mb-1">
+              <AgentAvatar role={arg.role} size="sm" className="h-3.5 w-3.5 text-[7px]" />
+              <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-[#7a756c]">
+                {AGENT_LABELS[arg.role]} · R{arg.round}
+              </span>
+              {arg.rebuttalTargetId && (
+                <span className="font-mono text-[8px] italic text-[#52504a]">
+                  (rebuttal)
                 </span>
-                {arg.rebuttalTargetId && (
-                  <span className="text-xs italic text-muted-foreground">
-                    (rebuttal)
-                  </span>
-                )}
-              </div>
-              <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-                {arg.text}
-              </p>
+              )}
             </div>
+            <p className="pl-5 text-[10px] leading-relaxed text-[#a39e93]">
+              {arg.text}
+            </p>
           </div>
         ))}
         <div ref={bottomRef} />

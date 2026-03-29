@@ -6,12 +6,14 @@ interface AudioWaveformProps {
   isActive: boolean;
   barCount?: number;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 export function AudioWaveform({
   isActive,
   barCount = 5,
   className,
+  style,
 }: AudioWaveformProps) {
   return (
     <div
@@ -19,6 +21,7 @@ export function AudioWaveform({
         "flex items-end justify-center gap-[3px]",
         className,
       )}
+      style={style}
       aria-label={isActive ? "Audio playing" : "Audio idle"}
     >
       {Array.from({ length: barCount }, (_, i) => (

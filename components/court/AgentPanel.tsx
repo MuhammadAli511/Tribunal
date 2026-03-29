@@ -1,7 +1,6 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AgentBadge, agentRingColor } from "@/components/shared/AgentBadge";
+import { AgentAvatar, agentColor } from "@/components/shared/AgentAvatar";
 import { AudioWaveform } from "./AudioWaveform";
 import { cn } from "@/lib/utils";
 import type { AgentRole } from "@/src/types";
@@ -20,32 +19,39 @@ export function AgentPanel({
   isSpeaking,
   className,
 }: AgentPanelProps) {
+  const color = agentColor(role);
+
   return (
-    <Card
+    <div
       className={cn(
-        "relative transition-all duration-300",
-        isSpeaking && `ring-2 ${agentRingColor(role)}`,
+        "rounded-[10px] border bg-[#1a1917] p-3 transition-all duration-300",
+        isSpeaking
+          ? "border-current/25"
+          : "border-[#1f1e1b]",
         className,
       )}
+      style={isSpeaking ? { borderColor: `${color}40` } : undefined}
     >
-      <CardHeader className="flex-row items-center justify-between gap-2">
-        <CardTitle className="flex items-center gap-2">
-          <span className="truncate">{AGENT_LABELS[role]}</span>
-          <AgentBadge role={role} />
-        </CardTitle>
-        <AudioWaveform isActive={isSpeaking} className="h-5" />
-      </CardHeader>
-      <CardContent>
-        {argumentText ? (
-          <p className="line-clamp-6 text-sm text-muted-foreground leading-relaxed">
-            {argumentText}
-          </p>
-        ) : (
-          <p className="text-sm italic text-muted-foreground/50">
-            Awaiting argument...
-          </p>
-        )}
-      </CardContent>
-    </Card>
+      <div className="mb-2 flex items-center gap-2">
+        <AgentAvatar role={role} size="sm" className="h-6 w-6 text-xs" />
+        <span className="text-[11px] font-semibold text-[#ede9e1]">
+          {AGENT_LABELS[role]}
+        </span>
+        <AudioWaveform
+          isActive={isSpeaking}
+          className="ml-auto h-4"
+          style={{ color }}
+        />
+      </div>
+      {argumentText ? (
+        <p className="line-clamp-4 text-[11px] leading-relaxed text-[#a39e93]">
+          {argumentText}
+        </p>
+      ) : (
+        <p className="text-[11px] italic text-[#52504a]">
+          Awaiting argument...
+        </p>
+      )}
+    </div>
   );
 }

@@ -6,7 +6,6 @@ import { CourtroomLayout } from "@/components/court/CourtroomLayout";
 import { AgentPanel } from "@/components/court/AgentPanel";
 import { ArgumentFeed } from "@/components/court/ArgumentFeed";
 import { CrossExamDialog } from "@/components/court/CrossExamDialog";
-import { Badge } from "@/components/ui/badge";
 import { useCaseSession } from "@/hooks/useCaseSession";
 import { useDebateFeed } from "@/hooks/useDebateFeed";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
@@ -33,19 +32,15 @@ export default function CourtroomPage() {
     },
   });
 
-  // When there are pending speaking items and audio is not playing, reveal
-  // the next one (adds argument to transcript) and start its audio.
   useEffect(() => {
     if (ttsPlaying) return;
     if (feed.pendingSpeaking.length === 0) return;
-
     const next = feed.pendingSpeaking[0];
     setTtsPlaying(true);
     feed.revealNext();
     audio.enqueue(next.argument.role, next.audioBase64);
   }, [ttsPlaying, feed.pendingSpeaking, audio, feed]);
 
-  // Cross-exam state
   const [crossExamOpen, setCrossExamOpen] = useState(false);
   const [crossExamQuestion, setCrossExamQuestion] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -54,7 +49,6 @@ export default function CourtroomPage() {
   useEffect(() => {
     const lastClarification = feed.clarifications[feed.clarifications.length - 1];
     if (lastClarification && !lastClarification.answer && feed.status === "cross-exam") {
-      console.log("[CrossExam] opening dialog:", lastClarification.question);
       setCrossExamQuestion(lastClarification.question);
       setCrossExamOpen(true);
     }
@@ -62,7 +56,6 @@ export default function CourtroomPage() {
 
   useEffect(() => {
     if (feed.verdict) {
-      console.log("[Verdict] received, navigating in 3s:", feed.verdict);
       const timer = setTimeout(() => router.push(`/verdict/${caseId}`), 3000);
       return () => clearTimeout(timer);
     }
@@ -75,7 +68,6 @@ export default function CourtroomPage() {
 
   const handleCrossExamSubmit = useCallback(
     (response: string) => {
-      console.log("[CrossExam] submitting response:", response);
       fetch(`/api/cases/${caseId}/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,24 +79,37 @@ export default function CourtroomPage() {
     [caseId],
   );
 
+  const statusLabel: Record<string, string> = {
+    intake: "Intake",
+    debating: "In Session",
+    "cross-exam": "Cross-Examination",
+    deliberating: "Deliberating...",
+    verdict: "Verdict Delivered",
+  };
+
   return (
-    <div className="flex h-svh overflow-hidden">
-      {/* Main courtroom area */}
-      <div className="flex flex-1 flex-col gap-4 overflow-hidden p-4">
-        {/* Status bar */}
-        <div className="flex shrink-0 items-center justify-between">
-          <h1 className="text-lg font-semibold">The Tribunal</h1>
-          <Badge variant={feed.status === "deliberating" ? "secondary" : "outline"}>
-            {feed.status === "intake" && "Intake"}
-            {feed.status === "debating" && "In Session"}
-            {feed.status === "cross-exam" && "Cross-Examination"}
-            {feed.status === "deliberating" && "Deliberating..."}
-            {feed.status === "verdict" && "Verdict Delivered"}
-          </Badge>
+    <div className="flex h-svh overflow-hidden bg-[#121210]">
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-[#1f1e1b] px-5 py-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">⚖️</span>
+            <span className="text-[12px] font-semibold text-[#ede9e1]">
+              Case #{caseId.slice(0, 4)}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#4ead6b]/20 bg-[#4ead6b]/8 px-2.5 py-0.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#4ead6b]" />
+              <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#4ead6b]">
+                {statusLabel[feed.status] || feed.status}
+              </span>
+            </span>
+          </div>
         </div>
 
-        {/* Courtroom grid — scrollable */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Agent grid */}
+        <div className="flex-1 overflow-y-auto p-3">
           <CourtroomLayout
             prosecutor={
               <AgentPanel
@@ -145,15 +150,16 @@ export default function CourtroomPage() {
         </div>
       </div>
 
-      {/* Transcript sidebar — fixed height, scrollable */}
-      <div className="hidden w-80 border-l lg:flex lg:flex-col">
-        <div className="shrink-0 border-b px-4 py-3">
-          <h2 className="text-sm font-medium">Transcript</h2>
+      {/* Transcript sidebar */}
+      <div className="hidden w-[280px] border-l border-[#1f1e1b] lg:flex lg:flex-col">
+        <div className="shrink-0 border-b border-[#1f1e1b] px-3 py-3">
+          <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#52504a]">
+            Live Transcript
+          </span>
         </div>
         <ArgumentFeed arguments={feed.arguments} className="flex-1 min-h-0" />
       </div>
 
-      {/* Cross-examination dialog */}
       <CrossExamDialog
         open={crossExamOpen}
         question={crossExamQuestion}
