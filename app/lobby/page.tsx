@@ -4,10 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ConversationProvider } from "@elevenlabs/react";
 import { MicButton } from "@/components/shared/MicButton";
-import { AgentBadge } from "@/components/shared/AgentBadge";
+import { AgentAvatar } from "@/components/shared/AgentAvatar";
 import { AudioWaveform } from "@/components/court/AudioWaveform";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConvAI } from "@/hooks/useConvAI";
 import { MicOff } from "lucide-react";
@@ -50,7 +48,6 @@ function LobbyContent() {
   const [phase, setPhase] = useState<LobbyPhase>("idle");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Track message counts to handle the greeting correctly
   const agentMsgCount = useRef(0);
   const userMsgCount = useRef(0);
   const clarificationsRef = useRef(clarifications);
@@ -58,12 +55,10 @@ function LobbyContent() {
 
   const handleAgentResponse = useCallback((text: string) => {
     agentMsgCount.current++;
-    // First agent message is the greeting — show it but don't add as clarification
     if (agentMsgCount.current === 1) {
       setGreeting(text);
       return;
     }
-
     setClarifications((prev) => [
       ...prev,
       { question: text, answer: "", index: prev.length + 1 },
@@ -72,14 +67,10 @@ function LobbyContent() {
 
   const handleUserTranscript = useCallback((text: string) => {
     userMsgCount.current++;
-
-    // First user message is always the case statement
     if (userMsgCount.current === 1) {
       setTranscript(text);
       return;
     }
-
-    // Subsequent messages → answer the latest unanswered clarification
     setClarifications((prev) => {
       const updated = [...prev];
       const unansweredIdx = updated.findIndex((c) => !c.answer);
@@ -90,11 +81,9 @@ function LobbyContent() {
     });
   }, []);
 
-  // Client tool: the Judge calls this when intake is complete
   const clientTools = useMemo(
     () => ({
       end_intake: async () => {
-        // Delay phase change so pending onMessage callbacks can fire
         setTimeout(() => setPhase("ready"), 1500);
         return "Intake complete. Session ending.";
       },
@@ -116,14 +105,12 @@ function LobbyContent() {
     onDisconnect: handleDisconnect,
   });
 
-  // Auto-end ConvAI session when phase becomes "ready"
   useEffect(() => {
     if (phase === "ready") {
       endSession();
     }
   }, [phase, endSession]);
 
-  // Auto-scroll transcript
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [clarifications.length, transcript]);
@@ -141,7 +128,6 @@ function LobbyContent() {
     setIsSubmitting(true);
     setPhase("ready");
     endSession();
-
     try {
       const res = await fetch("/api/cases", {
         method: "POST",
@@ -149,7 +135,6 @@ function LobbyContent() {
         body: JSON.stringify({ text: transcript }),
       });
       const { caseId } = (await res.json()) as { caseId: string };
-
       for (const c of clarifications) {
         if (c.answer) {
           await fetch(`/api/cases/${caseId}/clarify`, {
@@ -159,7 +144,6 @@ function LobbyContent() {
           });
         }
       }
-
       await fetch(`/api/cases/${caseId}/start-debate`, { method: "POST" });
       router.push(`/courtroom/${caseId}`);
     } catch {
@@ -170,44 +154,71 @@ function LobbyContent() {
   const isSessionLive = phase === "speaking" && status === "connected";
 
   return (
-    <div className="flex h-svh flex-col bg-background">
-      {/* Fixed header */}
-      <div className="shrink-0 pt-8 text-center">
-        <h1 className="text-3xl font-bold tracking-tight">The Tribunal</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Present your decision to the court
-        </p>
+    <div className="flex h-svh flex-col bg-[#121210]">
+      {/* Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-[#1f1e1b] px-6 py-3.5">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">⚖️</span>
+          <span className="text-[13px] font-semibold text-[#ede9e1]">Tribunal</span>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#2a2826] px-2.5 py-0.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#4ead6b]" />
+          <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#a39e93]">
+            Intake
+          </span>
+        </span>
       </div>
 
-      {/* Scrollable transcript area */}
+      {/* Judge avatar section */}
+      <div className="shrink-0 pt-8 text-center">
+        <AgentAvatar role="judge" size="lg" className="mx-auto shadow-[0_0_24px_rgba(91,141,239,0.12)]" />
+        <p className="mt-3 text-base font-semibold text-[#ede9e1]">The Judge</p>
+        <p className="text-[11px] text-[#7a756c]">is listening</p>
+      </div>
+
+      {/* Scrollable transcript */}
       <ScrollArea className="flex-1 px-4">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
           {greeting && (
-            <div className="flex items-start gap-2">
-              <AgentBadge role="judge" className="shrink-0 mt-0.5" />
-              <p className="text-sm">{greeting}</p>
+            <div className="rounded-[10px] border border-[#1f1e1b] bg-[#1a1917] p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <AgentAvatar role="judge" size="sm" />
+                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
+                  Judge
+                </span>
+              </div>
+              <p className="pl-7 text-[12px] leading-relaxed text-[#a39e93]">
+                {greeting}
+              </p>
             </div>
           )}
 
           {transcript && (
-            <Card className="w-full">
-              <CardContent>
-                <p className="text-xs font-medium text-muted-foreground mb-1">
-                  Your decision
-                </p>
-                <p className="text-sm leading-relaxed">{transcript}</p>
-              </CardContent>
-            </Card>
+            <div className="rounded-[10px] border border-[#1f1e1b] bg-[#1a1917] p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2a2826]">
+                  <div className="h-2 w-2 rounded-full bg-[#7a756c]" />
+                </div>
+                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
+                  You
+                </span>
+              </div>
+              <p className="pl-7 text-[12px] leading-relaxed text-[#ede9e1]">
+                {transcript}
+              </p>
+            </div>
           )}
 
           {clarifications.map((c, i) => (
-            <div key={i} className="flex flex-col gap-1.5">
+            <div key={i} className="flex flex-col gap-2">
               <div className="flex items-start gap-2">
-                <AgentBadge role="judge" className="shrink-0 mt-0.5" />
-                <p className="text-sm">{c.question}</p>
+                <AgentAvatar role="judge" size="sm" className="mt-0.5" />
+                <p className="text-[12px] leading-relaxed text-[#a39e93]">
+                  {c.question}
+                </p>
               </div>
               {c.answer && (
-                <p className="ml-14 text-sm text-muted-foreground">
+                <p className="ml-7 text-[12px] leading-relaxed text-[#ede9e1]">
                   {c.answer}
                 </p>
               )}
@@ -217,27 +228,26 @@ function LobbyContent() {
         </div>
       </ScrollArea>
 
-      {/* Fixed bottom controls */}
-      <div className="shrink-0 border-t bg-background/80 backdrop-blur-sm">
+      {/* Bottom controls */}
+      <div className="shrink-0 border-t border-[#1f1e1b] bg-[#121210]/80 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 px-4 py-4">
           {phase === "ready" ? (
             <div className="flex w-full flex-col items-center gap-3">
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-[13px] font-medium text-[#ede9e1]">
                 {transcript
                   ? "The court has enough information."
                   : "Session ended. Tap the mic to try again."}
               </p>
               {transcript ? (
-                <Button
-                  size="lg"
-                  className="w-full text-base"
+                <button
                   onClick={handleSubmit}
                   disabled={isSubmitting}
+                  className="w-full rounded-lg bg-[#ede9e1] py-2.5 text-[13px] font-semibold text-[#121210] transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
                   {isSubmitting
                     ? "Submitting to the Court..."
                     : "Submit to the Court"}
-                </Button>
+                </button>
               ) : null}
               <button
                 type="button"
@@ -249,13 +259,18 @@ function LobbyContent() {
                   agentMsgCount.current = 0;
                   userMsgCount.current = 0;
                 }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                className="text-[11px] text-[#52504a] transition-colors hover:text-[#a39e93]"
               >
                 Start over
               </button>
             </div>
           ) : (
             <>
+              <AudioWaveform
+                isActive={isSpeaking}
+                barCount={7}
+                className="h-5 text-[#5b8def]"
+              />
               <div className="flex items-center gap-4">
                 <MicButton
                   size={phase === "idle" ? "lg" : "default"}
@@ -263,25 +278,18 @@ function LobbyContent() {
                   onPress={handleMicToggle}
                   onRelease={() => {}}
                 />
-
                 {phase === "speaking" && (
                   <button
                     type="button"
                     onClick={() => setPhase("ready")}
-                    className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-muted-foreground/30 bg-muted/50 text-muted-foreground transition-colors hover:border-red-500/50 hover:text-red-500"
+                    className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#2a2826] bg-[#1a1917] text-[#7a756c] transition-colors hover:border-[#e35d5d]/50 hover:text-[#e35d5d]"
                     title="End session"
                   >
                     <MicOff className="h-6 w-6" />
                   </button>
                 )}
               </div>
-
-              <AudioWaveform
-                isActive={isSpeaking}
-                barCount={7}
-                className="h-5"
-              />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-[#7a756c]">
                 {status === "connecting"
                   ? "Connecting to the Judge..."
                   : isSessionLive
@@ -290,15 +298,13 @@ function LobbyContent() {
                       : "Listening — speak your decision"
                     : "Tap the mic to begin"}
               </p>
-
               {transcript && phase === "speaking" && (
-                <Button
-                  variant="outline"
-                  className="w-full"
+                <button
                   onClick={() => setPhase("ready")}
+                  className="w-full rounded-lg border border-[#2a2826] py-2 text-[12px] text-[#7a756c] transition-colors hover:border-[#7a756c] hover:text-[#a39e93]"
                 >
                   Done speaking — submit case
-                </Button>
+                </button>
               )}
             </>
           )}
