@@ -25,7 +25,7 @@ const MODEL = "@cf/openai/gpt-oss-120b" as const;
 const SPEECH_RULES = `
 
 OUTPUT RULES — your response will be read aloud by a text-to-speech engine:
-- Write EXACTLY 2-3 short paragraphs, no more than 150 words total.
+- Write EXACTLY 1-2 short paragraphs, no more than 95 words total. Prioritize one strong point over breadth.
 - Use plain conversational English as if speaking in a courtroom.
 - NEVER use markdown, bold, italics, headers, bullet points, numbered lists, tables, or special characters like dashes, pipes, asterisks, or brackets.
 - NEVER cite sources, URLs, or study names.
@@ -96,14 +96,14 @@ function buildUserPrompt(
     }
   }
 
-  prompt += `\nYour Task: Provide your ${role} argument for round ${ctx.round}. Remember, keep it under 150 words, plain text only.`;
+  prompt += `\nYour Task: Provide your ${role} argument for round ${ctx.round}. Hard cap: 95 words or fewer. Plain text only.`;
   return prompt;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
- * Generate a role-specific argument using Workers AI (Llama 3.3 70B).
+ * Generate a role-specific argument using Workers AI.
  *
  * @param ai        - Workers AI binding from the environment
  * @param role      - The agent role (prosecutor, defender, domain-expert, historian)
@@ -120,7 +120,7 @@ export async function generateArgument(
   const response = await ai.run(MODEL, {
     instructions: SYSTEM_PROMPTS[role],
     input: buildUserPrompt(role, caseCtx, historianCtx),
-    max_tokens: 300,
+    max_tokens: 220,
     temperature: 0.7,
     reasoning: { effort: "low" },
   } as Record<string, unknown>);
