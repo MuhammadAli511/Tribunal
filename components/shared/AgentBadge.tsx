@@ -1,29 +1,26 @@
 import { cn } from "@/lib/utils";
 import type { AgentRole } from "@/src/types";
 
-const ROLE_CONFIG: Record<
-  AgentRole,
-  { label: string; className: string }
-> = {
+const ROLE_CONFIG: Record<AgentRole, { label: string; className: string }> = {
   judge: {
     label: "Judge",
-    className: "bg-neutral-500/15 text-neutral-600 border-neutral-500/30 dark:text-neutral-300",
+    className: "bg-[#5b8def]/10 text-[#5b8def] border-[#5b8def]/20",
   },
   prosecutor: {
     label: "Prosecutor",
-    className: "bg-rose-500/15 text-rose-600 border-rose-500/30 dark:text-rose-400",
+    className: "bg-[#e35d5d]/10 text-[#e35d5d] border-[#e35d5d]/20",
   },
   defender: {
     label: "Defender",
-    className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
+    className: "bg-[#4ead6b]/10 text-[#4ead6b] border-[#4ead6b]/20",
   },
   "domain-expert": {
     label: "Expert",
-    className: "bg-sky-500/15 text-sky-600 border-sky-500/30 dark:text-sky-400",
+    className: "bg-[#e8a830]/10 text-[#e8a830] border-[#e8a830]/20",
   },
   historian: {
     label: "Historian",
-    className: "bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400",
+    className: "bg-[#b06ed4]/10 text-[#b06ed4] border-[#b06ed4]/20",
   },
 };
 
@@ -37,7 +34,7 @@ export function AgentBadge({ role, className }: AgentBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[9px] font-medium uppercase tracking-wider",
         config.className,
         className,
       )}
@@ -47,14 +44,13 @@ export function AgentBadge({ role, className }: AgentBadgeProps) {
   );
 }
 
-/** Get the Tailwind ring/border color class for a given agent role. */
 export function agentRingColor(role: AgentRole): string {
   const map: Record<AgentRole, string> = {
-    judge: "ring-neutral-500/50",
-    prosecutor: "ring-rose-500/50",
-    defender: "ring-emerald-500/50",
-    "domain-expert": "ring-sky-500/50",
-    historian: "ring-amber-500/50",
+    judge: "ring-[#5b8def]/40",
+    prosecutor: "ring-[#e35d5d]/40",
+    defender: "ring-[#4ead6b]/40",
+    "domain-expert": "ring-[#e8a830]/40",
+    historian: "ring-[#b06ed4]/40",
   };
   return map[role];
 }

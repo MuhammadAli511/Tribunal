@@ -1,21 +1,18 @@
 import { cn } from "@/lib/utils";
 import type { Ruling } from "@/src/types";
 
-const RULING_CONFIG: Record<
-  Ruling,
-  { label: string; className: string }
-> = {
+const RULING_CONFIG: Record<Ruling, { label: string; className: string }> = {
   proceed: {
     label: "Proceed",
-    className: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
+    className: "bg-[#4ead6b]/10 text-[#4ead6b] border-[#4ead6b]/20",
   },
   conditional: {
     label: "Conditional",
-    className: "bg-amber-500/15 text-amber-600 border-amber-500/30 dark:text-amber-400",
+    className: "bg-[#e8a830]/10 text-[#e8a830] border-[#e8a830]/20",
   },
   "do-not-proceed": {
     label: "Do Not Proceed",
-    className: "bg-red-500/15 text-red-600 border-red-500/30 dark:text-red-400",
+    className: "bg-[#e35d5d]/10 text-[#e35d5d] border-[#e35d5d]/20",
   },
 };
 
@@ -29,7 +26,7 @@ export function RulingBadge({ ruling, className }: RulingBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+        "inline-flex items-center rounded-md border px-2.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider",
         config.className,
         className,
       )}

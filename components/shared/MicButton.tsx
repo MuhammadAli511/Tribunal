@@ -26,21 +26,20 @@ export function MicButton({
       onPointerLeave={onRelease}
       className={cn(
         "relative flex items-center justify-center rounded-full border-2 transition-all duration-200 select-none",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7a756c] focus-visible:ring-offset-2 focus-visible:ring-offset-[#121210]",
         size === "lg"
-          ? "h-24 w-24 [&>svg]:size-10"
+          ? "h-[52px] w-[52px] [&>svg]:size-5"
           : "h-14 w-14 [&>svg]:size-6",
         isRecording
-          ? "border-red-500 bg-red-500/20 text-red-500 scale-110"
-          : "border-muted-foreground/30 bg-muted/50 text-muted-foreground hover:border-foreground/50 hover:text-foreground",
+          ? "border-[#e35d5d] bg-[#e35d5d]/20 text-[#e35d5d] scale-105"
+          : "border-[#2a2826] bg-[#1a1917] text-[#a39e93] hover:border-[#7a756c] hover:text-[#ede9e1]",
         className,
       )}
     >
-      {/* Pulsing ring when recording */}
       {isRecording && (
         <>
-          <span className="absolute inset-0 animate-ping rounded-full bg-red-500/20" />
-          <span className="absolute inset-[-4px] animate-pulse rounded-full border-2 border-red-500/40" />
+          <span className="absolute inset-0 animate-ping rounded-full bg-[#e35d5d]/15" />
+          <span className="absolute inset-[-6px] rounded-full border border-[#e35d5d]/30 animate-ring-pulse" />
         </>
       )}
       <Mic className="relative z-10" />
