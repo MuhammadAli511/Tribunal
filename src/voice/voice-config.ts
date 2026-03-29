@@ -6,7 +6,7 @@ export interface VoiceSettings {
   stability: number;
   /** 0-1. Higher = closer to original voice sample */
   similarityBoost: number;
-  /** Optional model override (defaults to eleven_multilingual_v2) */
+  /** Optional model override (defaults to eleven_flash_v2_5) */
   modelId?: string;
 }
 

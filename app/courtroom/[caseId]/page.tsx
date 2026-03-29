@@ -17,36 +17,33 @@ export default function CourtroomPage() {
   const router = useRouter();
   const caseId = params.caseId;
 
-  const feed = useDebateFeed({ caseId });
+  const feed = useDebateFeed();
   const { send } = useCaseSession({
     caseId,
     onEvent: (event) => {
-      console.log("[WS] event received:", event.type, event);
       feed.handleEvent(event);
     },
   });
 
+  const [ttsPlaying, setTtsPlaying] = useState(false);
+
   const audio = useAudioPlayer({
     onItemPlayed: () => {
-      console.log("[Audio] item finished playing");
-      feed.markAudioPlayed();
+      setTtsPlaying(false);
     },
   });
 
-  // Enqueue audio from the feed
+  // When there are pending speaking items and audio is not playing, reveal
+  // the next one (adds argument to transcript) and start its audio.
   useEffect(() => {
-    if (feed.audioQueue.length > 0) {
-      const latest = feed.audioQueue[feed.audioQueue.length - 1];
-      console.log("[Audio] enqueuing TTS for:", latest.role, "base64 length:", latest.audioBase64.length);
-      audio.enqueue(latest.role, latest.audioBase64);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feed.audioQueue.length]);
+    if (ttsPlaying) return;
+    if (feed.pendingSpeaking.length === 0) return;
 
-  // Log state changes
-  useEffect(() => {
-    console.log("[Feed] status:", feed.status, "args:", feed.arguments.length, "audio queue:", feed.audioQueue.length, "verdict:", !!feed.verdict, "error:", feed.error);
-  }, [feed.status, feed.arguments.length, feed.audioQueue.length, feed.verdict, feed.error]);
+    const next = feed.pendingSpeaking[0];
+    setTtsPlaying(true);
+    feed.revealNext();
+    audio.enqueue(next.argument.role, next.audioBase64);
+  }, [ttsPlaying, feed.pendingSpeaking, audio, feed]);
 
   // Cross-exam state
   const [crossExamOpen, setCrossExamOpen] = useState(false);

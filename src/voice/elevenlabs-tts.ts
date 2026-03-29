@@ -2,7 +2,7 @@ import type { AgentRole } from "../types";
 import { VOICE_CONFIG } from "./voice-config";
 
 const TTS_BASE_URL = "https://api.elevenlabs.io/v1/text-to-speech";
-const DEFAULT_MODEL = "eleven_multilingual_v2";
+const DEFAULT_MODEL = "eleven_flash_v2_5";
 
 /**
  * Synthesise speech for a given agent role using the ElevenLabs TTS API.

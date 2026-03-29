@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useReducer, useCallback } from "react";
+import { useReducer, useCallback } from "react";
 import type {
   AgentRole,
   Argument,
@@ -10,28 +10,35 @@ import type {
   Verdict,
 } from "@/src/types";
 
+interface PendingSpeaking {
+  argument: Argument;
+  audioBase64: string;
+}
+
 interface DebateState {
   status: SessionStatus;
   clarifications: Clarification[];
+  /** Arguments that have been revealed (audio started playing) */
   arguments: Argument[];
+  /** Buffered speaking events waiting for playback turn */
+  pendingSpeaking: PendingSpeaking[];
   speakingRole: AgentRole | null;
   verdict: Verdict | null;
-  audioQueue: { role: AgentRole; audioBase64: string }[];
   error: string | null;
 }
 
 type DebateAction =
   | { type: "EVENT"; event: DebateEvent }
-  | { type: "AUDIO_PLAYED" }
+  | { type: "REVEAL_NEXT" }
   | { type: "RESET" };
 
 const INITIAL_STATE: DebateState = {
   status: "intake",
   clarifications: [],
   arguments: [],
+  pendingSpeaking: [],
   speakingRole: null,
   verdict: null,
-  audioQueue: [],
   error: null,
 };
 
@@ -40,13 +47,18 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
     case "RESET":
       return INITIAL_STATE;
 
-    case "AUDIO_PLAYED":
+    case "REVEAL_NEXT": {
+      if (state.pendingSpeaking.length === 0) {
+        return { ...state, speakingRole: null };
+      }
+      const [next, ...rest] = state.pendingSpeaking;
       return {
         ...state,
-        audioQueue: state.audioQueue.slice(1),
-        speakingRole:
-          state.audioQueue.length > 1 ? state.audioQueue[1].role : null,
+        arguments: [...state.arguments, next.argument],
+        pendingSpeaking: rest,
+        speakingRole: next.argument.role,
       };
+    }
 
     case "EVENT": {
       const { event } = action;
@@ -63,27 +75,20 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
             ...state,
             arguments: [...state.arguments, event.data],
           };
-        case "speaking":
+        case "speaking": {
+          const pending: PendingSpeaking = {
+            argument: event.data,
+            audioBase64: event.audioBase64,
+          };
           return {
             ...state,
-            arguments: [...state.arguments, event.data],
-            audioQueue: [
-              ...state.audioQueue,
-              { role: event.data.role, audioBase64: event.audioBase64 },
-            ],
-            speakingRole: state.speakingRole ?? event.data.role,
+            pendingSpeaking: [...state.pendingSpeaking, pending],
           };
+        }
         case "audio":
-          return {
-            ...state,
-            audioQueue: [
-              ...state.audioQueue,
-              { role: event.role, audioBase64: event.audioBase64 },
-            ],
-            speakingRole: state.speakingRole ?? event.role,
-          };
+          return state;
         case "user_response":
-          return state; // handled by cross-exam dialog
+          return state;
         case "verdict":
           return { ...state, verdict: event.data };
         case "error":
@@ -98,49 +103,16 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
   }
 }
 
-interface UseDebateFeedOptions {
-  caseId: string | null;
-}
-
-export function useDebateFeed({ caseId }: UseDebateFeedOptions) {
+export function useDebateFeed() {
   const [state, dispatch] = useReducer(debateReducer, INITIAL_STATE);
-  const eventSourceRef = useRef<EventSource | null>(null);
-
-  useEffect(() => {
-    if (!caseId) return;
-
-    dispatch({ type: "RESET" });
-
-    const url = `/api/cases/${caseId}/stream`;
-    const es = new EventSource(url);
-    eventSourceRef.current = es;
-
-    es.addEventListener("message", (event) => {
-      try {
-        const parsed = JSON.parse(event.data) as DebateEvent;
-        dispatch({ type: "EVENT", event: parsed });
-      } catch {
-        // ignore malformed events
-      }
-    });
-
-    es.addEventListener("error", () => {
-      // EventSource auto-reconnects on error
-    });
-
-    return () => {
-      es.close();
-      eventSourceRef.current = null;
-    };
-  }, [caseId]);
 
   const handleEvent = useCallback((event: DebateEvent) => {
     dispatch({ type: "EVENT", event });
   }, []);
 
-  const markAudioPlayed = useCallback(() => {
-    dispatch({ type: "AUDIO_PLAYED" });
+  const revealNext = useCallback(() => {
+    dispatch({ type: "REVEAL_NEXT" });
   }, []);
 
-  return { ...state, handleEvent, markAudioPlayed };
+  return { ...state, handleEvent, revealNext };
 }
