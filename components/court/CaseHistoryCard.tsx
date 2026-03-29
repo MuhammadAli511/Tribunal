@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RulingBadge } from "@/components/shared/RulingBadge";
 import { cn } from "@/lib/utils";
 import type { CaseSummary } from "@/src/types";
@@ -18,26 +17,30 @@ export function CaseHistoryCard({
   const formattedDate = date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
   });
 
   return (
-    <Card
+    <div
       className={cn(
-        "cursor-pointer transition-colors hover:bg-muted/30",
+        "cursor-pointer rounded-[10px] border border-[#1f1e1b] bg-[#1a1917] p-4 transition-colors hover:border-[#2a2826]",
         className,
       )}
       onClick={onClick}
     >
-      <CardHeader className="flex-row items-start justify-between gap-2">
-        <CardTitle className="line-clamp-2 text-sm">
-          {caseSummary.briefSnippet}
-        </CardTitle>
+      <div className="mb-2 flex items-start justify-between">
+        <span className="font-mono text-[9px] text-[#52504a]">
+          {formattedDate}
+        </span>
         <RulingBadge ruling={caseSummary.ruling} />
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">{formattedDate}</p>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="text-[12px] font-medium text-[#ede9e1]">
+        {caseSummary.briefSnippet}
+      </p>
+      {caseSummary.summary && (
+        <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[#7a756c]">
+          {caseSummary.summary}
+        </p>
+      )}
+    </div>
   );
 }
