@@ -24,12 +24,15 @@ interface DebateState {
   pendingSpeaking: PendingSpeaking[];
   speakingRole: AgentRole | null;
   verdict: Verdict | null;
+  /** Verdict received from backend but not yet shown (waiting for TTS to drain) */
+  pendingVerdict: Verdict | null;
   error: string | null;
 }
 
 type DebateAction =
   | { type: "EVENT"; event: DebateEvent }
   | { type: "REVEAL_NEXT" }
+  | { type: "FLUSH_VERDICT" }
   | { type: "RESET" };
 
 const INITIAL_STATE: DebateState = {
@@ -39,6 +42,7 @@ const INITIAL_STATE: DebateState = {
   pendingSpeaking: [],
   speakingRole: null,
   verdict: null,
+  pendingVerdict: null,
   error: null,
 };
 
@@ -60,10 +64,22 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
       };
     }
 
+    case "FLUSH_VERDICT": {
+      if (!state.pendingVerdict) return state;
+      return {
+        ...state,
+        verdict: state.pendingVerdict,
+        pendingVerdict: null,
+        status: "verdict",
+      };
+    }
+
     case "EVENT": {
       const { event } = action;
       switch (event.type) {
         case "status_change":
+          // Don't immediately show "verdict" status — wait for TTS queue to drain
+          if (event.status === "verdict") return state;
           return { ...state, status: event.status };
         case "clarification":
           return {
@@ -90,7 +106,8 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
         case "user_response":
           return state;
         case "verdict":
-          return { ...state, verdict: event.data };
+          // Buffer the verdict — don't apply until TTS playback is complete
+          return { ...state, pendingVerdict: event.data };
         case "error":
           return { ...state, error: event.message };
         default:
@@ -114,5 +131,9 @@ export function useDebateFeed() {
     dispatch({ type: "REVEAL_NEXT" });
   }, []);
 
-  return { ...state, handleEvent, revealNext };
+  const flushVerdict = useCallback(() => {
+    dispatch({ type: "FLUSH_VERDICT" });
+  }, []);
+
+  return { ...state, handleEvent, revealNext, flushVerdict };
 }

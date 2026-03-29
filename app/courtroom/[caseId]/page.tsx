@@ -54,6 +54,13 @@ export default function CourtroomPage() {
     }
   }, [feed.clarifications, feed.status]);
 
+  // Flush the buffered verdict only after all TTS audio has finished playing
+  useEffect(() => {
+    if (!ttsPlaying && feed.pendingSpeaking.length === 0 && feed.pendingVerdict) {
+      feed.flushVerdict();
+    }
+  }, [ttsPlaying, feed.pendingSpeaking.length, feed.pendingVerdict, feed]);
+
   useEffect(() => {
     if (feed.verdict) {
       const timer = setTimeout(() => router.push(`/verdict/${caseId}`), 3000);
