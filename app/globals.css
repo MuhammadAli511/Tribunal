@@ -141,3 +141,51 @@
 .animate-shimmer {
   animation: shimmer 3s infinite;
 }
+
+/* ── Avatar breathing ── */
+@keyframes avatar-breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.02); }
+}
+.animate-avatar-breathe {
+  animation: avatar-breathe 4s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+/* ── Avatar eye blink ── */
+@keyframes avatar-blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+.animate-avatar-blink {
+  animation: avatar-blink 4s ease-in-out infinite;
+}
+
+/* ── Avatar speaking mouth ── */
+@keyframes avatar-speak {
+  0%, 100% { d: path("M-4,0 Q0,0 4,0"); }
+  33% { d: path("M-4,0 Q0,3 4,0"); }
+  66% { d: path("M-4,0 Q0,5 4,0"); }
+}
+.animate-avatar-speak {
+  animation: avatar-speak 0.3s ease-in-out infinite;
+}
+
+/* ── Avatar head bob when speaking ── */
+@keyframes avatar-head-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+.animate-avatar-head-bob {
+  animation: avatar-head-bob 0.6s ease-in-out infinite;
+}
+
+/* ── Avatar react (eyes widen) ── */
+@keyframes avatar-react {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+.animate-avatar-react {
+  animation: avatar-react 0.5s ease-out forwards;
+}

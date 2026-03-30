@@ -7,6 +7,7 @@ import { VerdictCard } from "@/components/court/VerdictCard";
 import { AgentAvatar } from "@/components/shared/AgentAvatar";
 import { AudioWaveform } from "@/components/court/AudioWaveform";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
+import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
 import type { CaseRecord } from "@/src/types";
 
 export default function VerdictPage() {
@@ -17,6 +18,11 @@ export default function VerdictPage() {
   const [caseRecord, setCaseRecord] = useState<CaseRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const audio = useAudioPlayer();
+  const { setMood } = useAtmosphere();
+
+  useEffect(() => {
+    setMood("verdict");
+  }, [setMood]);
 
   useEffect(() => {
     async function load() {
@@ -34,7 +40,7 @@ export default function VerdictPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-[#121210]">
+      <div className="flex min-h-svh items-center justify-center">
         <p className="text-[12px] text-[#7a756c]">Loading verdict...</p>
       </div>
     );
@@ -42,7 +48,7 @@ export default function VerdictPage() {
 
   if (!caseRecord?.verdict) {
     return (
-      <div className="flex min-h-svh items-center justify-center bg-[#121210]">
+      <div className="flex min-h-svh items-center justify-center">
         <div className="text-center">
           <p className="text-[12px] text-[#7a756c]">No verdict found for this case.</p>
           <button
@@ -57,7 +63,7 @@ export default function VerdictPage() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-[#121210]">
+    <div className="flex min-h-svh flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#1f1e1b] px-6 py-3.5">
         <div className="flex items-center gap-2">
@@ -83,7 +89,8 @@ export default function VerdictPage() {
             <AgentAvatar
               role="judge"
               size="lg"
-              className="mx-auto shadow-[0_0_24px_rgba(91,141,239,0.12)]"
+              state={audio.isPlaying ? "speaking" : "idle"}
+              className="mx-auto"
             />
             <h1 className="mt-4 text-xl font-bold text-[#ede9e1]">
               The Court Has Ruled

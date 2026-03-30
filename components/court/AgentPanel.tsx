@@ -33,7 +33,7 @@ export function AgentPanel({
       style={isSpeaking ? { borderColor: `${color}40` } : undefined}
     >
       <div className="mb-2 flex items-center gap-2">
-        <AgentAvatar role={role} size="sm" className="h-6 w-6 text-xs" />
+        <AgentAvatar role={role} size="sm" state={isSpeaking ? "speaking" : "idle"} className="h-6 w-6" />
         <span className="text-[11px] font-semibold text-[#ede9e1]">
           {AGENT_LABELS[role]}
         </span>

@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConvAI } from "@/hooks/useConvAI";
 import { MicOff } from "lucide-react";
 import type { Clarification } from "@/src/types";
+import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
 
 const JUDGE_PROMPT = `You are the Judge in a decision tribunal gathering information about a decision someone is considering.
 
@@ -47,6 +48,11 @@ function LobbyContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phase, setPhase] = useState<LobbyPhase>("idle");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { setMood } = useAtmosphere();
+
+  useEffect(() => {
+    setMood(phase === "speaking" ? "lobby-recording" : "lobby");
+  }, [phase, setMood]);
 
   const agentMsgCount = useRef(0);
   const userMsgCount = useRef(0);
@@ -154,7 +160,7 @@ function LobbyContent() {
   const isSessionLive = phase === "speaking" && status === "connected";
 
   return (
-    <div className="flex h-svh flex-col bg-[#121210]">
+    <div className="flex h-svh flex-col">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-[#1f1e1b] px-6 py-3.5">
         <div className="flex items-center gap-2">
@@ -171,7 +177,7 @@ function LobbyContent() {
 
       {/* Judge avatar section */}
       <div className="shrink-0 pt-8 text-center">
-        <AgentAvatar role="judge" size="lg" className="mx-auto shadow-[0_0_24px_rgba(91,141,239,0.12)]" />
+        <AgentAvatar role="judge" size="lg" state={isSpeaking ? "speaking" : "idle"} className="mx-auto" />
         <p className="mt-3 text-base font-semibold text-[#ede9e1]">The Judge</p>
         <p className="text-[11px] text-[#7a756c]">is listening</p>
       </div>
@@ -229,7 +235,7 @@ function LobbyContent() {
       </ScrollArea>
 
       {/* Bottom controls */}
-      <div className="shrink-0 border-t border-[#1f1e1b] bg-[#121210]/80 backdrop-blur-sm">
+      <div className="shrink-0 border-t border-[#1f1e1b] bg-[#0a0a08]/80 backdrop-blur-sm">
         <div className="mx-auto flex w-full max-w-md flex-col items-center gap-3 px-4 py-4">
           {phase === "ready" ? (
             <div className="flex w-full flex-col items-center gap-3">

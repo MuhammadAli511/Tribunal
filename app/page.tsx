@@ -1,9 +1,13 @@
+"use client";
+
+import { useEffect } from "react";
 import { Navbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
 import { CourtPanel } from "@/components/landing/court-panel";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { BottomCta } from "@/components/landing/bottom-cta";
 import { Footer } from "@/components/landing/footer";
+import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
 
 function Divider() {
   return (
@@ -14,8 +18,14 @@ function Divider() {
 }
 
 export default function HomePage() {
+  const { setMood } = useAtmosphere();
+
+  useEffect(() => {
+    setMood("landing");
+  }, [setMood]);
+
   return (
-    <div className="min-h-svh bg-[#121210]">
+    <div className="min-h-svh">
       <Navbar />
       <Hero />
       <Divider />

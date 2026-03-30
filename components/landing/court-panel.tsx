@@ -61,13 +61,13 @@ export function CourtPanel() {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
-          className="mt-8 flex gap-3 overflow-x-auto pb-2"
+          className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
         >
           {AGENTS.map((agent) => (
             <motion.div
               key={agent.role}
               variants={item}
-              className="min-w-[180px] shrink-0 rounded-[10px] border border-[#1f1e1b] bg-[#1a1917] p-4"
+              className="rounded-[10px] border border-[#1f1e1b] bg-[#1a1917] p-4"
             >
               <AgentAvatar role={agent.role} size="md" className="mb-3 h-9 w-9 text-lg" />
               <p className="text-[13px] font-semibold text-[#ede9e1]">

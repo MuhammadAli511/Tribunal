@@ -10,6 +10,8 @@ import { useCaseSession } from "@/hooks/useCaseSession";
 import { useDebateFeed } from "@/hooks/useDebateFeed";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
 import type { AgentRole } from "@/src/types";
+import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
+import type { MoodName } from "@/components/atmosphere/types";
 
 export default function CourtroomPage() {
   const params = useParams<{ caseId: string }>();
@@ -25,6 +27,23 @@ export default function CourtroomPage() {
   });
 
   const [ttsPlaying, setTtsPlaying] = useState(false);
+
+  const { setMood } = useAtmosphere();
+
+  // Map debate status to atmosphere mood
+  useEffect(() => {
+    const moodMap: Record<string, MoodName> = {
+      intake: "courtroom-intake",
+      debating: "courtroom-debating",
+      "cross-exam": "courtroom-crossexam",
+      deliberating: "courtroom-deliberating",
+      verdict: "courtroom-verdict",
+    };
+    const mood = moodMap[feed.status] || "courtroom-intake";
+    const isDeliberation = feed.status === "deliberating";
+    const useFlash = feed.status !== "intake" && !isDeliberation;
+    setMood(mood, useFlash, isDeliberation);
+  }, [feed.status, setMood]);
 
   const audio = useAudioPlayer({
     onItemPlayed: () => {
@@ -95,7 +114,7 @@ export default function CourtroomPage() {
   };
 
   return (
-    <div className="flex h-svh overflow-hidden bg-[#121210]">
+    <div className="flex h-svh overflow-hidden">
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-[#1f1e1b] px-5 py-3">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
+import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
 import { CaseHistoryCard } from "@/components/court/CaseHistoryCard";
 import { VerdictCard } from "@/components/court/VerdictCard";
 import { ArgumentFeed } from "@/components/court/ArgumentFeed";
@@ -36,6 +37,12 @@ export default function HistoryPage() {
   const [selectedCase, setSelectedCase] = useState<CaseRecord | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetLoading, setSheetLoading] = useState(false);
+
+  const { setMood } = useAtmosphere();
+
+  useEffect(() => {
+    setMood("history");
+  }, [setMood]);
 
   useEffect(() => {
     async function load() {
@@ -71,7 +78,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="min-h-svh bg-[#121210]">
+    <div className="min-h-svh">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#1f1e1b] px-6 py-3.5">
         <div className="flex items-center gap-2">
