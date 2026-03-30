@@ -12,7 +12,7 @@ import { MicOff } from "lucide-react";
 import type { Clarification } from "@/src/types";
 import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
 
-const JUDGE_PROMPT = `You are the Judge in a decision tribunal gathering information about a decision someone is considering.
+const CLERK_PROMPT = `You are the Court Clerk in a decision tribunal. Your role is to gather all the necessary information and facts about a decision someone is considering before the case goes to trial.
 
 IMPORTANT RULES — follow them in strict order:
 
@@ -27,8 +27,8 @@ IMPORTANT RULES — follow them in strict order:
 
 4. NEVER call end_intake early. If you are unsure whether you have enough information, ask another question instead of calling end_intake.`;
 
-const JUDGE_FIRST_MESSAGE =
-  "The court is now in session. Please state the decision you are considering.";
+const CLERK_FIRST_MESSAGE =
+  "Good day. I'll be gathering the details of your case before it goes to the court. Please state the decision you are considering.";
 
 type LobbyPhase = "idle" | "speaking" | "ready";
 
@@ -87,10 +87,12 @@ function LobbyContent() {
     });
   }, []);
 
+  const intakeDoneRef = useRef(false);
+
   const clientTools = useMemo(
     () => ({
       end_intake: async () => {
-        setTimeout(() => setPhase("ready"), 1500);
+        intakeDoneRef.current = true;
         return "Intake complete. Session ending.";
       },
     }),
@@ -103,19 +105,22 @@ function LobbyContent() {
 
   const { status, isSpeaking, endSession } = useConvAI({
     enabled: phase === "speaking",
-    prompt: JUDGE_PROMPT,
-    firstMessage: JUDGE_FIRST_MESSAGE,
+    prompt: CLERK_PROMPT,
+    firstMessage: CLERK_FIRST_MESSAGE,
     clientTools,
     onAgentResponse: handleAgentResponse,
     onUserTranscript: handleUserTranscript,
     onDisconnect: handleDisconnect,
   });
 
+  // When end_intake is called, wait for the judge to finish speaking before transitioning
   useEffect(() => {
-    if (phase === "ready") {
+    if (intakeDoneRef.current && !isSpeaking) {
+      intakeDoneRef.current = false;
+      setPhase("ready");
       endSession();
     }
-  }, [phase, endSession]);
+  }, [isSpeaking, endSession]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -178,8 +183,8 @@ function LobbyContent() {
       {/* Judge avatar section */}
       <div className="shrink-0 pt-8 text-center">
         <AgentAvatar role="judge" size="lg" state={isSpeaking ? "speaking" : "idle"} className="mx-auto" />
-        <p className="mt-3 text-base font-semibold text-[#ede9e1]">The Judge</p>
-        <p className="text-[11px] text-[#7a756c]">is listening</p>
+        <p className="mt-3 text-base font-semibold text-[#ede9e1]">The Clerk</p>
+        <p className="text-[11px] text-[#7a756c]">is gathering facts</p>
       </div>
 
       {/* Scrollable transcript */}
@@ -190,7 +195,7 @@ function LobbyContent() {
               <div className="mb-2 flex items-center gap-2">
                 <AgentAvatar role="judge" size="sm" />
                 <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
-                  Judge
+                  Clerk
                 </span>
               </div>
               <p className="pl-7 text-[12px] leading-relaxed text-[#a39e93]">
@@ -216,17 +221,32 @@ function LobbyContent() {
           )}
 
           {clarifications.map((c, i) => (
-            <div key={i} className="flex flex-col gap-2">
-              <div className="flex items-start gap-2">
-                <AgentAvatar role="judge" size="sm" className="mt-0.5" />
-                <p className="text-[12px] leading-relaxed text-[#a39e93]">
+            <div key={i} className="flex flex-col gap-4">
+              <div className="rounded-[10px] border border-[#1f1e1b] bg-[#1a1917] p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <AgentAvatar role="judge" size="sm" />
+                  <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
+                    Clerk
+                  </span>
+                </div>
+                <p className="pl-7 text-[12px] leading-relaxed text-[#a39e93]">
                   {c.question}
                 </p>
               </div>
               {c.answer && (
-                <p className="ml-7 text-[12px] leading-relaxed text-[#ede9e1]">
-                  {c.answer}
-                </p>
+                <div className="rounded-[10px] border border-[#1f1e1b] bg-[#1a1917] p-4">
+                  <div className="mb-2 flex items-center gap-2">
+                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2a2826]">
+                      <div className="h-2 w-2 rounded-full bg-[#7a756c]" />
+                    </div>
+                    <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
+                      You
+                    </span>
+                  </div>
+                  <p className="pl-7 text-[12px] leading-relaxed text-[#ede9e1]">
+                    {c.answer}
+                  </p>
+                </div>
               )}
             </div>
           ))}
@@ -297,10 +317,10 @@ function LobbyContent() {
               </div>
               <p className="text-[10px] text-[#7a756c]">
                 {status === "connecting"
-                  ? "Connecting to the Judge..."
+                  ? "Connecting to the Clerk..."
                   : isSessionLive
                     ? isSpeaking
-                      ? "The Judge is speaking..."
+                      ? "The Clerk is speaking..."
                       : "Listening — speak your decision"
                     : "Tap the mic to begin"}
               </p>

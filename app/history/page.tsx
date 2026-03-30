@@ -5,15 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
 import { CaseHistoryCard } from "@/components/court/CaseHistoryCard";
-import { VerdictCard } from "@/components/court/VerdictCard";
-import { ArgumentFeed } from "@/components/court/ArgumentFeed";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import type { CaseRecord, CaseSummary, DetectedPattern } from "@/src/types";
+import type { CaseSummary, DetectedPattern } from "@/src/types";
 
 const container = {
   hidden: { opacity: 0 },
@@ -33,10 +25,6 @@ export default function HistoryPage() {
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [patterns, setPatterns] = useState<DetectedPattern[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [selectedCase, setSelectedCase] = useState<CaseRecord | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [sheetLoading, setSheetLoading] = useState(false);
 
   const { setMood } = useAtmosphere();
 
@@ -64,17 +52,8 @@ export default function HistoryPage() {
     load();
   }, []);
 
-  const handleCardClick = async (caseId: string) => {
-    setSheetOpen(true);
-    setSheetLoading(true);
-    try {
-      const res = await fetch(`/api/cases/${caseId}`);
-      if (res.ok) {
-        setSelectedCase((await res.json()) as CaseRecord);
-      }
-    } finally {
-      setSheetLoading(false);
-    }
+  const handleCardClick = (caseId: string) => {
+    router.push(`/history/${caseId}`);
   };
 
   return (
@@ -156,46 +135,6 @@ export default function HistoryPage() {
         )}
       </div>
 
-      {/* Detail sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>Case Details</SheetTitle>
-          </SheetHeader>
-
-          {sheetLoading ? (
-            <p className="py-8 text-center text-[12px] text-[#7a756c]">
-              Loading...
-            </p>
-          ) : selectedCase ? (
-            <div className="mt-4 flex flex-col gap-6">
-              <div>
-                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
-                  Decision
-                </span>
-                <p className="mt-1.5 text-[12px] leading-relaxed text-[#a39e93]">
-                  {selectedCase.brief.text}
-                </p>
-              </div>
-
-              {selectedCase.verdict && (
-                <VerdictCard verdict={selectedCase.verdict} />
-              )}
-
-              <div>
-                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[#7a756c]">
-                  Full Transcript
-                </span>
-                <div className="mt-2 max-h-96 overflow-y-auto rounded-[10px] border border-[#1f1e1b]">
-                  <ArgumentFeed
-                    arguments={selectedCase.rounds.flatMap((r) => r.arguments)}
-                  />
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
