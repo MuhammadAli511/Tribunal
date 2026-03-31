@@ -6,6 +6,8 @@ import { CourtroomLayout } from "@/components/court/CourtroomLayout";
 import { AgentPanel } from "@/components/court/AgentPanel";
 import { ArgumentFeed } from "@/components/court/ArgumentFeed";
 import { CrossExamDialog } from "@/components/court/CrossExamDialog";
+import { MomentumBar } from "@/components/court/MomentumBar";
+import { PulseTimeline } from "@/components/court/PulseTimeline";
 import { useCaseSession } from "@/hooks/useCaseSession";
 import { useDebateFeed } from "@/hooks/useDebateFeed";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
@@ -50,6 +52,9 @@ export default function CourtroomPage() {
       setTtsPlaying(false);
     },
   });
+
+  const momentum = feed.sentimentScores.reduce((sum, s) => sum + s.score, 0);
+  const clampedMomentum = Math.max(-1, Math.min(1, momentum));
 
   useEffect(() => {
     if (ttsPlaying) return;
@@ -134,6 +139,12 @@ export default function CourtroomPage() {
           </div>
         </div>
 
+        {feed.sentimentScores.length > 0 && (
+          <div className="shrink-0 px-5 pt-2">
+            <MomentumBar momentum={clampedMomentum} />
+          </div>
+        )}
+
         {/* Agent grid */}
         <div className="flex-1 overflow-y-auto p-3">
           <CourtroomLayout
@@ -184,6 +195,11 @@ export default function CourtroomPage() {
           </span>
         </div>
         <ArgumentFeed arguments={feed.arguments} className="flex-1 min-h-0" />
+        {feed.sentimentScores.length > 0 && (
+          <div className="shrink-0 border-t border-[#1f1e1b] p-2">
+            <PulseTimeline scores={feed.sentimentScores} />
+          </div>
+        )}
       </div>
 
       <CrossExamDialog

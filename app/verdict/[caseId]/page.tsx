@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { VerdictCard } from "@/components/court/VerdictCard";
+import { JuryBox } from "@/components/court/JuryBox";
 import { AgentAvatar } from "@/components/shared/AgentAvatar";
 import { AudioWaveform } from "@/components/court/AudioWaveform";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
@@ -104,7 +105,17 @@ export default function VerdictPage() {
 
           <VerdictCard verdict={caseRecord.verdict} />
 
+          {caseRecord.juryVerdict && (
+            <JuryBox juryVerdict={caseRecord.juryVerdict} />
+          )}
+
           <div className="mt-6 flex justify-center gap-3">
+            <button
+              onClick={() => router.push(`/report/${caseId}`)}
+              className="rounded-lg border border-[#2a2826] px-5 py-2.5 text-[12px] text-[#7a756c] transition-colors hover:border-[#7a756c] hover:text-[#a39e93]"
+            >
+              Share Report
+            </button>
             <button
               onClick={() => router.push("/history")}
               className="rounded-lg border border-[#2a2826] px-5 py-2.5 text-[12px] text-[#7a756c] transition-colors hover:border-[#7a756c] hover:text-[#a39e93]"

@@ -80,7 +80,9 @@ export interface CaseRecord {
   clarifications: Clarification[];
   rounds: DebateRound[];
   verdict?: Verdict;
+  juryVerdict?: JuryVerdict;
   status: SessionStatus;
+  templateId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -95,6 +97,8 @@ export type DebateEvent =
   | { type: "audio"; role: AgentRole; audioBase64: string }
   | { type: "user_response"; round: number; text: string }
   | { type: "verdict"; data: Verdict }
+  | { type: "jury_verdict"; data: JuryVerdict }
+  | { type: "sentiment"; role: AgentRole; score: number }
   | { type: "error"; message: string };
 
 // ── Historian-specific ───────────────────────────────────────────────────────
@@ -115,4 +119,41 @@ export interface DetectedPattern {
   /** Case IDs that contributed to this pattern */
   caseIds: string[];
   detectedAt: string;
+}
+
+// ── Decision Templates ──────────────────────────────────────────────────────
+
+export type TemplateId =
+  | "hiring"
+  | "product-launch"
+  | "investment"
+  | "partnership"
+  | "strategic-pivot"
+  | "freeform";
+
+export interface DecisionTemplate {
+  id: TemplateId;
+  name: string;
+  description: string;
+  icon: string;
+  /** Appended to the Judge/Clerk ConvAI system prompt to guide domain-specific questions */
+  systemPromptModifier: string;
+  /** Hint appended to agent argument prompts for domain awareness */
+  agentHint: string;
+}
+
+// ── Jury System ─────────────────────────────────────────────────────────────
+
+export type JuryVoteValue = "proceed" | "do-not-proceed" | "conditional";
+
+export interface JuryVote {
+  name: string;
+  persona: string;
+  vote: JuryVoteValue;
+  rationale: string;
+}
+
+export interface JuryVerdict {
+  votes: JuryVote[];
+  tally: { proceed: number; against: number; conditional: number };
 }

@@ -9,23 +9,10 @@ import { AudioWaveform } from "@/components/court/AudioWaveform";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useConvAI } from "@/hooks/useConvAI";
 import { MicOff } from "lucide-react";
-import type { Clarification } from "@/src/types";
+import type { Clarification, TemplateId } from "@/src/types";
 import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
-
-const CLERK_PROMPT = `You are the Court Clerk in a decision tribunal. Your role is to gather all the necessary information and facts about a decision someone is considering before the case goes to trial.
-
-IMPORTANT RULES — follow them in strict order:
-
-1. WAIT for the user to state their decision. Accept it as-is. Do NOT restate or clarify it.
-
-2. You MUST ask exactly 3 follow-up questions, ONE at a time. Wait for the user to answer each question before asking the next. Questions should cover:
-   - What are the risks if this goes wrong?
-   - Are there deadlines, constraints, or budget considerations?
-   - Who else is affected by this decision?
-
-3. ONLY after you have asked all 3 questions AND received all 3 answers, call the end_intake tool. Do NOT call end_intake before asking and receiving answers to all 3 questions. The user stating their decision does NOT count as an answer.
-
-4. NEVER call end_intake early. If you are unsure whether you have enough information, ask another question instead of calling end_intake.`;
+import { TemplateGrid } from "@/components/court/TemplateGrid";
+import { getTemplate } from "@/lib/templates";
 
 const CLERK_FIRST_MESSAGE =
   "Good day. I'll be gathering the details of your case before it goes to the court. Please state the decision you are considering.";
@@ -47,8 +34,32 @@ function LobbyContent() {
   const [clarifications, setClarifications] = useState<Clarification[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phase, setPhase] = useState<LobbyPhase>("idle");
+  const [templateId, setTemplateId] = useState<TemplateId | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { setMood } = useAtmosphere();
+
+  const clerkPrompt = useMemo(() => {
+    const base = `You are the Court Clerk in a decision tribunal. Your role is to gather all the necessary information and facts about a decision someone is considering before the case goes to trial.
+
+IMPORTANT RULES — follow them in strict order:
+
+1. WAIT for the user to state their decision. Accept it as-is. Do NOT restate or clarify it.
+
+2. You MUST ask exactly 3 follow-up questions, ONE at a time. Wait for the user to answer each question before asking the next. Questions should cover:
+   - What are the risks if this goes wrong?
+   - Are there deadlines, constraints, or budget considerations?
+   - Who else is affected by this decision?
+
+3. ONLY after you have asked all 3 questions AND received all 3 answers, call the end_intake tool. Do NOT call end_intake before asking and receiving answers to all 3 questions. The user stating their decision does NOT count as an answer.
+
+4. NEVER call end_intake early. If you are unsure whether you have enough information, ask another question instead of calling end_intake.`;
+
+    const template = templateId ? getTemplate(templateId) : null;
+    if (template?.systemPromptModifier) {
+      return base + "\n\n" + template.systemPromptModifier;
+    }
+    return base;
+  }, [templateId]);
 
   useEffect(() => {
     setMood(phase === "speaking" ? "lobby-recording" : "lobby");
@@ -105,7 +116,7 @@ function LobbyContent() {
 
   const { status, isSpeaking, endSession } = useConvAI({
     enabled: phase === "speaking",
-    prompt: CLERK_PROMPT,
+    prompt: clerkPrompt,
     firstMessage: CLERK_FIRST_MESSAGE,
     clientTools,
     onAgentResponse: handleAgentResponse,
@@ -143,7 +154,7 @@ function LobbyContent() {
       const res = await fetch("/api/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: transcript }),
+        body: JSON.stringify({ text: transcript, templateId: templateId ?? "freeform" }),
       });
       const { caseId } = (await res.json()) as { caseId: string };
       for (const c of clarifications) {
@@ -188,7 +199,7 @@ function LobbyContent() {
       </div>
 
       {/* Scrollable transcript */}
-      <ScrollArea className="flex-1 px-4">
+      <ScrollArea className="min-h-0 flex-1 px-4">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
           {greeting && (
             <div className="rounded-[10px] border border-[#1f1e1b] bg-[#1a1917] p-4">
@@ -284,6 +295,7 @@ function LobbyContent() {
                   setClarifications([]);
                   agentMsgCount.current = 0;
                   userMsgCount.current = 0;
+                  setTemplateId(null);
                 }}
                 className="text-[11px] text-[#52504a] transition-colors hover:text-[#a39e93]"
               >
@@ -291,48 +303,66 @@ function LobbyContent() {
               </button>
             </div>
           ) : (
-            <>
-              <AudioWaveform
-                isActive={isSpeaking}
-                barCount={7}
-                className="h-5 text-[#5b8def]"
-              />
-              <div className="flex items-center gap-4">
-                <MicButton
-                  size={phase === "idle" ? "lg" : "default"}
-                  isRecording={isSessionLive}
-                  onPress={handleMicToggle}
-                  onRelease={() => {}}
+            phase === "idle" && !templateId ? (
+              <div className="flex w-full flex-col items-center gap-3">
+                <p className="text-[11px] text-[#7a756c]">Choose a case type to begin</p>
+                <TemplateGrid
+                  selected={templateId}
+                  onSelect={(id) => setTemplateId(id)}
+                  className="w-full"
                 />
-                {phase === "speaking" && (
+                <button
+                  type="button"
+                  onClick={() => setTemplateId("freeform")}
+                  className="text-[10px] text-[#52504a] transition-colors hover:text-[#a39e93]"
+                >
+                  or skip and speak freely
+                </button>
+              </div>
+            ) : (
+              <>
+                <AudioWaveform
+                  isActive={isSpeaking}
+                  barCount={7}
+                  className="h-5 text-[#5b8def]"
+                />
+                <div className="flex items-center gap-4">
+                  <MicButton
+                    size={phase === "idle" ? "lg" : "default"}
+                    isRecording={isSessionLive}
+                    onPress={handleMicToggle}
+                    onRelease={() => {}}
+                  />
+                  {phase === "speaking" && (
+                    <button
+                      type="button"
+                      onClick={() => setPhase("ready")}
+                      className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#2a2826] bg-[#1a1917] text-[#7a756c] transition-colors hover:border-[#e35d5d]/50 hover:text-[#e35d5d]"
+                      title="End session"
+                    >
+                      <MicOff className="h-6 w-6" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-[#7a756c]">
+                  {status === "connecting"
+                    ? "Connecting to the Clerk..."
+                    : isSessionLive
+                      ? isSpeaking
+                        ? "The Clerk is speaking..."
+                        : "Listening — speak your decision"
+                      : "Tap the mic to begin"}
+                </p>
+                {transcript && phase === "speaking" && (
                   <button
-                    type="button"
                     onClick={() => setPhase("ready")}
-                    className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#2a2826] bg-[#1a1917] text-[#7a756c] transition-colors hover:border-[#e35d5d]/50 hover:text-[#e35d5d]"
-                    title="End session"
+                    className="w-full rounded-lg border border-[#2a2826] py-2 text-[12px] text-[#7a756c] transition-colors hover:border-[#7a756c] hover:text-[#a39e93]"
                   >
-                    <MicOff className="h-6 w-6" />
+                    Done speaking — submit case
                   </button>
                 )}
-              </div>
-              <p className="text-[10px] text-[#7a756c]">
-                {status === "connecting"
-                  ? "Connecting to the Clerk..."
-                  : isSessionLive
-                    ? isSpeaking
-                      ? "The Clerk is speaking..."
-                      : "Listening — speak your decision"
-                    : "Tap the mic to begin"}
-              </p>
-              {transcript && phase === "speaking" && (
-                <button
-                  onClick={() => setPhase("ready")}
-                  className="w-full rounded-lg border border-[#2a2826] py-2 text-[12px] text-[#7a756c] transition-colors hover:border-[#7a756c] hover:text-[#a39e93]"
-                >
-                  Done speaking — submit case
-                </button>
-              )}
-            </>
+              </>
+            )
           )}
         </div>
       </div>

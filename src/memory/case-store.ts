@@ -6,6 +6,9 @@ import type {
   CaseRecord,
   Clarification,
   DebateRound,
+  JuryVote,
+  JuryVoteValue,
+  JuryVerdict,
   Ruling,
   SessionStatus,
   Verdict,
@@ -58,6 +61,16 @@ type VerdictRow = {
 type StateRow = {
   key: string;
   value: string;
+  [k: string]: SqlStorageValue;
+};
+
+type JuryVoteRow = {
+  id: string;
+  name: string;
+  persona: string;
+  vote: string;
+  rationale: string;
+  created_at: string;
   [k: string]: SqlStorageValue;
 };
 
@@ -196,6 +209,50 @@ export class CaseStore {
     return (rows[0]?.value as SessionStatus) ?? "intake";
   }
 
+  setMeta(key: string, value: string): void {
+    this.sql.exec(
+      "INSERT INTO session_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      key,
+      value,
+    );
+  }
+
+  getMeta(key: string): string | null {
+    const rows = this.sql
+      .exec<StateRow>(
+        "SELECT value FROM session_state WHERE key = ?",
+        key,
+      )
+      .toArray();
+    return rows[0]?.value ?? null;
+  }
+
+  // ── Jury Votes ─────────────────────────────────────────────────────────────
+
+  saveJuryVotes(votes: JuryVote[]): void {
+    for (const v of votes) {
+      this.sql.exec(
+        "INSERT INTO jury_votes (name, persona, vote, rationale) VALUES (?, ?, ?, ?)",
+        v.name,
+        v.persona,
+        v.vote,
+        v.rationale,
+      );
+    }
+  }
+
+  getJuryVotes(): JuryVote[] {
+    return this.sql
+      .exec<JuryVoteRow>("SELECT * FROM jury_votes ORDER BY created_at")
+      .toArray()
+      .map((r) => ({
+        name: r.name,
+        persona: r.persona,
+        vote: r.vote as JuryVoteValue,
+        rationale: r.rationale,
+      }));
+  }
+
   // ── Full Case Record ───────────────────────────────────────────────────────
 
   getCaseRecord(caseId: string): CaseRecord | null {
@@ -206,7 +263,9 @@ export class CaseStore {
     const allArgs = this.getAllArguments();
     const userResponses = this.getUserResponses();
     const verdict = this.getVerdict();
+    const juryVotes = this.getJuryVotes();
     const status = this.getStatus();
+    const templateId = this.getMeta("templateId");
 
     // Group arguments into rounds
     const roundMap = new Map<number, Argument[]>();
@@ -230,7 +289,18 @@ export class CaseStore {
       clarifications,
       rounds,
       verdict: verdict ?? undefined,
+      juryVerdict: juryVotes.length > 0
+        ? {
+            votes: juryVotes,
+            tally: {
+              proceed: juryVotes.filter((v) => v.vote === "proceed").length,
+              against: juryVotes.filter((v) => v.vote === "do-not-proceed").length,
+              conditional: juryVotes.filter((v) => v.vote === "conditional").length,
+            },
+          }
+        : undefined,
       status,
+      templateId: templateId ?? undefined,
       createdAt: brief.createdAt,
       updatedAt: verdict?.createdAt ?? brief.createdAt,
     };

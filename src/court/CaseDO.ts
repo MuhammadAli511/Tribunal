@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { CaseStore } from "../memory/case-store";
 import type { Env } from "../env";
-import type { AgentRole, Argument, Clarification, DebateEvent, SessionStatus, Verdict } from "../types";
+import type { AgentRole, Argument, Clarification, DebateEvent, JuryVerdict, SessionStatus, Verdict } from "../types";
 
 /**
  * One Durable Object per case.
@@ -48,8 +48,12 @@ export class CaseDO extends DurableObject<Env> {
         return this.handleUserResponse(request);
       case "POST /verdict":
         return this.handleVerdict(request);
+      case "POST /jury-verdict":
+        return this.handleJuryVerdict(request);
       case "POST /broadcast-audio":
         return this.handleBroadcastAudio(request);
+      case "POST /broadcast-sentiment":
+        return this.handleBroadcastSentiment(request);
       case "GET /record":
         return this.handleGetRecord();
       case "GET /status":
@@ -62,9 +66,12 @@ export class CaseDO extends DurableObject<Env> {
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   private async handlePresent(request: Request): Promise<Response> {
-    const { text } = (await request.json()) as { text: string };
+    const { text, templateId } = (await request.json()) as { text: string; templateId?: string };
     const briefId = this.store.saveBrief(text);
     this.store.setStatus("intake");
+    if (templateId) {
+      this.store.setMeta("templateId", templateId);
+    }
     this.broadcast({ type: "status_change", status: "intake" });
     return json({ briefId });
   }
@@ -129,6 +136,13 @@ export class CaseDO extends DurableObject<Env> {
     return json(saved);
   }
 
+  private async handleJuryVerdict(request: Request): Promise<Response> {
+    const juryVerdict = (await request.json()) as JuryVerdict;
+    this.store.saveJuryVotes(juryVerdict.votes);
+    this.broadcast({ type: "jury_verdict", data: juryVerdict });
+    return json({ ok: true });
+  }
+
   private handleGetRecord(): Response {
     const caseId = this.ctx.id.toString();
     const record = this.store.getCaseRecord(caseId);
@@ -142,6 +156,12 @@ export class CaseDO extends DurableObject<Env> {
       audioBase64: string;
     };
     this.broadcast({ type: "audio", role, audioBase64 });
+    return json({ ok: true });
+  }
+
+  private async handleBroadcastSentiment(request: Request): Promise<Response> {
+    const { role, score } = (await request.json()) as { role: AgentRole; score: number };
+    this.broadcast({ type: "sentiment", role, score });
     return json({ ok: true });
   }
 

@@ -86,10 +86,9 @@ function matchRoute(
 
 /** POST /api/cases — Create a new case and return its ID */
 async function handleCreateCase(request: Request, env: Env): Promise<Response> {
-  const body = (await request.json()) as { text?: string };
+  const body = (await request.json()) as { text?: string; templateId?: string };
   if (!body.text) return errorJson("Missing 'text' field");
 
-  // Generate a new CaseDO with a unique ID
   const caseId = env.CASE_DO.newUniqueId();
   const caseDO = env.CASE_DO.get(caseId);
 
@@ -97,7 +96,7 @@ async function handleCreateCase(request: Request, env: Env): Promise<Response> {
     new Request("http://do/present", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: body.text }),
+      body: JSON.stringify({ text: body.text, templateId: body.templateId }),
     }),
   );
 

@@ -7,6 +7,9 @@ import type { Env } from "../env";
 import type { AgentRole, Argument, CaseBrief, CaseRecord, Clarification, Verdict } from "../types";
 import type { CaseContext } from "./argument-generator";
 import { synthesiseSpeechBase64 } from "../voice/elevenlabs-tts";
+import { getAgentHint } from "../templates";
+import { deliberateJury } from "./jury-deliberation";
+import { scoreArgument } from "./sentiment-scorer";
 
 // ── Workflow params ─────────────────────────────────────────────────────────
 
@@ -66,7 +69,12 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
     const speakArgument = async (arg: Argument) => {
       try {
         console.log("[TTS] synthesising for", arg.role, "text length:", arg.text.length);
-        const audioBase64 = await synthesiseSpeechBase64(apiKey, arg.text, arg.role);
+        const [audioBase64] = await Promise.all([
+          synthesiseSpeechBase64(apiKey, arg.text, arg.role),
+          scoreArgument(this.env.AI, arg, brief.text).then(async (score) => {
+            await callDO(caseDO, "POST", "/broadcast-sentiment", { role: arg.role, score });
+          }).catch(() => {}),
+        ]);
         console.log("[TTS] got audio for", arg.role, "base64 length:", audioBase64.length);
         await callDO(caseDO, "POST", "/broadcast-speaking", { argument: arg, audioBase64 });
         console.log("[TTS] broadcast done for", arg.role);
@@ -106,6 +114,7 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
       clarifications,
       priorArguments: [],
       round,
+      templateHint: caseRecord.templateId ? getAgentHint(caseRecord.templateId) : undefined,
     };
 
     // ── Step 2: Domain Expert argues ──────────────────────────────────────
@@ -314,6 +323,23 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
         .filter(Boolean)
         .join(" ");
       await speakAs(verdictText, "judge");
+    });
+
+    // ── Step: Jury deliberation ───────────────────────────────────────────
+    const juryVerdict = await step.do("jury-deliberation", async () => {
+      const allArguments = [...allRound1Args, prosecutorRebuttal];
+      return deliberateJury(this.env.AI, {
+        brief,
+        clarifications,
+        allArguments,
+        verdict,
+      });
+    });
+
+    console.log("[Workflow] jury verdict:", juryVerdict.tally);
+
+    await step.do("broadcast-jury-verdict", async () => {
+      await callDO(caseDO, "POST", "/jury-verdict", juryVerdict);
     });
 
     // ── Step 10: Record case in Historian for future reference ─────────────

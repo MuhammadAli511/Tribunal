@@ -6,6 +6,7 @@ import type {
   Argument,
   Clarification,
   DebateEvent,
+  JuryVerdict,
   SessionStatus,
   Verdict,
 } from "@/src/types";
@@ -13,6 +14,11 @@ import type {
 interface PendingSpeaking {
   argument: Argument;
   audioBase64: string;
+}
+
+interface SentimentScore {
+  role: AgentRole;
+  score: number;
 }
 
 interface DebateState {
@@ -26,6 +32,11 @@ interface DebateState {
   verdict: Verdict | null;
   /** Verdict received from backend but not yet shown (waiting for TTS to drain) */
   pendingVerdict: Verdict | null;
+  juryVerdict: JuryVerdict | null;
+  /** Revealed sentiment scores (synced with audio playback) */
+  sentimentScores: SentimentScore[];
+  /** Buffered sentiment scores waiting to be revealed with their argument */
+  pendingSentiment: SentimentScore[];
   error: string | null;
 }
 
@@ -43,6 +54,9 @@ const INITIAL_STATE: DebateState = {
   speakingRole: null,
   verdict: null,
   pendingVerdict: null,
+  juryVerdict: null,
+  sentimentScores: [],
+  pendingSentiment: [],
   error: null,
 };
 
@@ -56,11 +70,19 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
         return { ...state, speakingRole: null };
       }
       const [next, ...rest] = state.pendingSpeaking;
+      // Flush any buffered sentiment for this role
+      const matchIdx = state.pendingSentiment.findIndex((s) => s.role === next.argument.role);
+      const revealedSentiment = matchIdx >= 0 ? [state.pendingSentiment[matchIdx]] : [];
+      const remainingSentiment = matchIdx >= 0
+        ? [...state.pendingSentiment.slice(0, matchIdx), ...state.pendingSentiment.slice(matchIdx + 1)]
+        : state.pendingSentiment;
       return {
         ...state,
         arguments: [...state.arguments, next.argument],
         pendingSpeaking: rest,
         speakingRole: next.argument.role,
+        sentimentScores: [...state.sentimentScores, ...revealedSentiment],
+        pendingSentiment: remainingSentiment,
       };
     }
 
@@ -108,6 +130,14 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
         case "verdict":
           // Buffer the verdict — don't apply until TTS playback is complete
           return { ...state, pendingVerdict: event.data };
+        case "jury_verdict":
+          return { ...state, juryVerdict: event.data };
+        case "sentiment":
+          // Buffer sentiment — it gets revealed when the matching argument's audio plays
+          return {
+            ...state,
+            pendingSentiment: [...state.pendingSentiment, { role: event.role, score: event.score }],
+          };
         case "error":
           return { ...state, error: event.message };
         default:

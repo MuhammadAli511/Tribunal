@@ -8,6 +8,8 @@ export interface CaseContext {
   clarifications: Clarification[];
   priorArguments: Argument[];
   round: number;
+  /** Optional domain hint from the selected decision template */
+  templateHint?: string;
 }
 
 /** Historian-specific context for pattern-aware arguments. */
@@ -66,6 +68,10 @@ function buildUserPrompt(
   historianCtx?: HistorianContext,
 ): string {
   let prompt = `The Decision Under Review:\n${ctx.brief.text}\n`;
+
+  if (ctx.templateHint) {
+    prompt += `\nDomain Context: ${ctx.templateHint}\n`;
+  }
 
   if (ctx.clarifications.length > 0) {
     prompt += `\nClarifications from the Decision-Maker:\n`;

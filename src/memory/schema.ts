@@ -45,6 +45,15 @@ export const CASE_SCHEMA = `
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS jury_votes (
+    id        TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(8)))),
+    name      TEXT NOT NULL,
+    persona   TEXT NOT NULL,
+    vote      TEXT NOT NULL CHECK (vote IN ('proceed', 'do-not-proceed', 'conditional')),
+    rationale TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `;
 
 // ── HistorianDO SQLite Schema ────────────────────────────────────────────────
