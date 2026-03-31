@@ -26,7 +26,7 @@ export function RulingBadge({ ruling, className }: RulingBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md border px-2.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider",
+        "inline-flex items-center justify-center text-center rounded-md border px-2.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider",
         config.className,
         className,
       )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CourtroomLayout } from "@/components/court/CourtroomLayout";
 import { AgentPanel } from "@/components/court/AgentPanel";
@@ -8,9 +8,14 @@ import { ArgumentFeed } from "@/components/court/ArgumentFeed";
 import { CrossExamDialog } from "@/components/court/CrossExamDialog";
 import { MomentumBar } from "@/components/court/MomentumBar";
 import { PulseTimeline } from "@/components/court/PulseTimeline";
+import { SessionBanner } from "@/components/court/SessionBanner";
+import { VerdictReveal } from "@/components/court/VerdictReveal";
+import { ObjectionBanner } from "@/components/court/ObjectionBanner";
+import { EvidenceBoard } from "@/components/court/EvidenceBoard";
 import { useCaseSession } from "@/hooks/useCaseSession";
 import { useDebateFeed } from "@/hooks/useDebateFeed";
 import { useAudioPlayer } from "@/hooks/useAudioPlayer";
+import { useSoundEffects } from "@/hooks/useSoundEffects";
 import type { AgentRole } from "@/src/types";
 import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
 import type { MoodName } from "@/components/atmosphere/types";
@@ -29,8 +34,13 @@ export default function CourtroomPage() {
   });
 
   const [ttsPlaying, setTtsPlaying] = useState(false);
+  const [shaking, setShaking] = useState(false);
+  const [verdictRevealing, setVerdictRevealing] = useState(false);
+  const [objection, setObjection] = useState<{ role: AgentRole; id: string } | null>(null);
 
   const { setMood } = useAtmosphere();
+  const sfx = useSoundEffects();
+  const prevJudgeSpeaking = useRef(false);
 
   // Map debate status to atmosphere mood
   useEffect(() => {
@@ -47,14 +57,49 @@ export default function CourtroomPage() {
     setMood(mood, useFlash, isDeliberation);
   }, [feed.status, setMood]);
 
+  // Start ambient audio on mount
+  useEffect(() => {
+    sfx.play("ambiance");
+    return () => sfx.stop("ambiance");
+  }, [sfx]);
+
   const audio = useAudioPlayer({
     onItemPlayed: () => {
       setTtsPlaying(false);
     },
   });
 
+  // Gavel strike when judge starts speaking
+  useEffect(() => {
+    const isJudge = audio.currentRole === "judge";
+    if (isJudge && !prevJudgeSpeaking.current) {
+      sfx.play("gavel");
+      setShaking(true);
+      setTimeout(() => setShaking(false), 200);
+    }
+    prevJudgeSpeaking.current = isJudge;
+  }, [audio.currentRole, sfx]);
+
   const momentum = feed.sentimentScores.reduce((sum, s) => sum + s.score, 0);
   const clampedMomentum = Math.max(-1, Math.min(1, momentum));
+
+  // Compute per-side heat
+  const prosecutionHeat = feed.sentimentScores
+    .filter((s) => s.role === "prosecutor")
+    .reduce((sum, s) => sum + Math.abs(s.score), 0);
+  const defenseHeat = feed.sentimentScores
+    .filter((s) => s.role === "defender")
+    .reduce((sum, s) => sum + Math.abs(s.score), 0);
+
+  // Detect objections (strong rebuttals)
+  useEffect(() => {
+    const lastArg = feed.arguments[feed.arguments.length - 1];
+    if (!lastArg?.rebuttalTargetId) return;
+    const lastSentiment = feed.sentimentScores[feed.sentimentScores.length - 1];
+    if (lastSentiment && Math.abs(lastSentiment.score) > 0.7) {
+      setObjection({ role: lastArg.role, id: lastArg.id });
+    }
+  }, [feed.arguments, feed.sentimentScores]);
 
   useEffect(() => {
     if (ttsPlaying) return;
@@ -78,24 +123,19 @@ export default function CourtroomPage() {
     }
   }, [feed.clarifications, feed.status]);
 
-  // Flush the buffered verdict only after all TTS audio has finished playing
+  // Verdict reveal sequence
   useEffect(() => {
     if (!ttsPlaying && feed.pendingSpeaking.length === 0 && feed.pendingVerdict) {
+      sfx.play("verdict");
+      sfx.play("gavel");
+      setVerdictRevealing(true);
       feed.flushVerdict();
     }
-  }, [ttsPlaying, feed.pendingSpeaking.length, feed.pendingVerdict, feed]);
+  }, [ttsPlaying, feed.pendingSpeaking.length, feed.pendingVerdict, feed, sfx]);
 
-  useEffect(() => {
-    if (feed.verdict) {
-      const timer = setTimeout(() => router.push(`/verdict/${caseId}`), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [feed.verdict, caseId, router]);
-
-  const latestArgByRole = (role: AgentRole): string | undefined => {
-    const args = feed.arguments.filter((a) => a.role === role);
-    return args[args.length - 1]?.text;
-  };
+  const handleVerdictComplete = useCallback(() => {
+    router.push(`/verdict/${caseId}`);
+  }, [router, caseId]);
 
   const handleCrossExamSubmit = useCallback(
     (response: string) => {
@@ -118,8 +158,18 @@ export default function CourtroomPage() {
     verdict: "Verdict Delivered",
   };
 
+  const latestArgByRole = (role: AgentRole): string | undefined => {
+    const args = feed.arguments.filter((a) => a.role === role);
+    return args[args.length - 1]?.text;
+  };
+
+  const isThinking = (role: AgentRole) =>
+    feed.status === "debating" &&
+    !feed.arguments.some((a) => a.role === role) &&
+    !audio.currentRole;
+
   return (
-    <div className="flex h-svh overflow-hidden">
+    <div className={`flex h-svh overflow-hidden ${shaking ? "animate-screen-shake" : ""}`}>
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-[#1f1e1b] px-5 py-3">
@@ -145,14 +195,28 @@ export default function CourtroomPage() {
           </div>
         )}
 
-        {/* Agent grid */}
-        <div className="flex-1 overflow-y-auto p-3">
+        {/* Amphitheater stage */}
+        <div className="relative flex-1 overflow-hidden p-3">
+          <SessionBanner caseId={caseId} />
+          <ObjectionBanner
+            role={objection?.role ?? null}
+            triggerId={objection?.id ?? null}
+          />
+
+          {verdictRevealing && feed.verdict && (
+            <VerdictReveal verdict={feed.verdict} onComplete={handleVerdictComplete} />
+          )}
+
           <CourtroomLayout
+            prosecutionHeat={Math.min(1, prosecutionHeat * 0.5 + 0.04)}
+            defenseHeat={Math.min(1, defenseHeat * 0.5 + 0.04)}
+            className={verdictRevealing ? "opacity-30 transition-opacity duration-1000" : ""}
             prosecutor={
               <AgentPanel
                 role="prosecutor"
                 argumentText={latestArgByRole("prosecutor")}
                 isSpeaking={audio.currentRole === "prosecutor"}
+                isThinking={isThinking("prosecutor")}
               />
             }
             defender={
@@ -160,6 +224,7 @@ export default function CourtroomPage() {
                 role="defender"
                 argumentText={latestArgByRole("defender")}
                 isSpeaking={audio.currentRole === "defender"}
+                isThinking={isThinking("defender")}
               />
             }
             expert={
@@ -167,6 +232,7 @@ export default function CourtroomPage() {
                 role="domain-expert"
                 argumentText={latestArgByRole("domain-expert")}
                 isSpeaking={audio.currentRole === "domain-expert"}
+                isThinking={isThinking("domain-expert")}
               />
             }
             historian={
@@ -174,6 +240,7 @@ export default function CourtroomPage() {
                 role="historian"
                 argumentText={latestArgByRole("historian")}
                 isSpeaking={audio.currentRole === "historian"}
+                isThinking={isThinking("historian")}
               />
             }
             judge={
@@ -194,6 +261,10 @@ export default function CourtroomPage() {
             Live Transcript
           </span>
         </div>
+        <EvidenceBoard
+          arguments={feed.arguments}
+          sentimentScores={feed.sentimentScores}
+        />
         <ArgumentFeed arguments={feed.arguments} className="flex-1 min-h-0" />
         {feed.sentimentScores.length > 0 && (
           <div className="shrink-0 border-t border-[#1f1e1b] p-2">

@@ -13,6 +13,8 @@ import type { Clarification, TemplateId } from "@/src/types";
 import { useAtmosphere } from "@/components/atmosphere/AtmosphereProvider";
 import { TemplateGrid } from "@/components/court/TemplateGrid";
 import { getTemplate } from "@/lib/templates";
+import { DictationDisplay } from "@/components/shared/DictationDisplay";
+import { CaseFileAnimation } from "@/components/court/CaseFileAnimation";
 
 const CLERK_FIRST_MESSAGE =
   "Good day. I'll be gathering the details of your case before it goes to the court. Please state the decision you are considering.";
@@ -37,6 +39,7 @@ function LobbyContent() {
   const [templateId, setTemplateId] = useState<TemplateId | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { setMood } = useAtmosphere();
+  const [showCaseFile, setShowCaseFile] = useState<string | null>(null);
 
   const clerkPrompt = useMemo(() => {
     const base = `You are the Court Clerk in a decision tribunal. Your role is to gather all the necessary information and facts about a decision someone is considering before the case goes to trial.
@@ -167,7 +170,7 @@ IMPORTANT RULES — follow them in strict order:
         }
       }
       await fetch(`/api/cases/${caseId}/start-debate`, { method: "POST" });
-      router.push(`/courtroom/${caseId}`);
+      setShowCaseFile(caseId);
     } catch {
       setIsSubmitting(false);
     }
@@ -353,6 +356,13 @@ IMPORTANT RULES — follow them in strict order:
                         : "Listening — speak your decision"
                       : "Tap the mic to begin"}
                 </p>
+                {isSessionLive && transcript && (
+                  <DictationDisplay
+                    text={transcript}
+                    isActive={isSessionLive && !isSpeaking}
+                    className="mt-2 max-h-[60px] w-full overflow-hidden rounded-lg border border-[#1f1e1b] bg-[#1a1917] px-3 py-2"
+                  />
+                )}
                 {transcript && phase === "speaking" && (
                   <button
                     onClick={() => setPhase("ready")}
@@ -366,6 +376,13 @@ IMPORTANT RULES — follow them in strict order:
           )}
         </div>
       </div>
+      {showCaseFile && (
+        <CaseFileAnimation
+          caseId={showCaseFile}
+          briefText={transcript}
+          onComplete={() => router.push(`/courtroom/${showCaseFile}`)}
+        />
+      )}
     </div>
   );
 }

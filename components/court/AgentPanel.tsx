@@ -10,6 +10,7 @@ interface AgentPanelProps {
   role: AgentRole;
   argumentText?: string;
   isSpeaking: boolean;
+  isThinking?: boolean;
   className?: string;
 }
 
@@ -17,33 +18,81 @@ export function AgentPanel({
   role,
   argumentText,
   isSpeaking,
+  isThinking = false,
   className,
 }: AgentPanelProps) {
   const color = agentColor(role);
+  const isIdle = !isSpeaking && !isThinking && !!argumentText;
 
   return (
     <div
       className={cn(
-        "rounded-[10px] border bg-[#1a1917] p-3 transition-all duration-300",
+        "relative rounded-xl border p-3.5 transition-all duration-500",
+        "bg-[rgba(26,25,23,0.7)] backdrop-blur-[16px]",
         isSpeaking
-          ? "border-current/25"
-          : "border-[#1f1e1b]",
+          ? "border-[color:var(--agent-color-20)]"
+          : "border-[#1f1e1b80]",
+        isIdle && "opacity-70",
         className,
       )}
-      style={isSpeaking ? { borderColor: `${color}40` } : undefined}
+      style={{
+        ["--agent-color" as string]: color,
+        ["--agent-color-10" as string]: `${color}1a`,
+        ["--agent-color-20" as string]: `${color}33`,
+        ...(isSpeaking
+          ? {
+              borderColor: `${color}33`,
+              boxShadow: `0 0 0 1px ${color}1a, 0 8px 40px -12px ${color}, 0 0 80px -30px ${color}`,
+            }
+          : {}),
+      }}
     >
-      <div className="mb-2 flex items-center gap-2">
-        <AgentAvatar role={role} size="sm" state={isSpeaking ? "speaking" : "idle"} className="h-6 w-6" />
+      {/* Thinking particles */}
+      {isThinking && (
+        <div className="pointer-events-none absolute -top-2 left-1/2 h-12 w-12 -translate-x-1/2">
+          {[0, -0.75, -1.5].map((delay, i) => (
+            <span
+              key={i}
+              className="absolute left-1/2 top-1/2"
+              style={{
+                width: `${4 - i}px`,
+                height: `${4 - i}px`,
+                borderRadius: "50%",
+                background: color,
+                boxShadow: `0 0 4px ${color}`,
+                opacity: 0.6 - i * 0.15,
+                animation: `t-orbit 2.2s linear infinite`,
+                animationDelay: `${delay}s`,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className="mb-2 flex items-center gap-2.5">
+        <div className="relative">
+          <AgentAvatar role={role} size="sm" state={isSpeaking ? "speaking" : "idle"} className="h-[32px] w-[32px]" />
+          {isSpeaking && (
+            <span
+              className="absolute -inset-[5px] rounded-full border animate-ring-fade"
+              style={{ borderColor: color }}
+            />
+          )}
+        </div>
         <span className="text-[11px] font-semibold text-[#ede9e1]">
-          {AGENT_LABELS[role]}
+          {role === "judge" ? "The Honorable Judge" : AGENT_LABELS[role]}
         </span>
         <AudioWaveform
           isActive={isSpeaking}
-          className="ml-auto h-4"
+          className="ml-auto h-3.5"
           style={{ color }}
         />
       </div>
-      {argumentText ? (
+      {isThinking ? (
+        <p className="text-[11px] italic leading-relaxed" style={{ color: `${color}66` }}>
+          Analyzing...
+        </p>
+      ) : argumentText ? (
         <p className="line-clamp-4 text-[11px] leading-relaxed text-[#a39e93]">
           {argumentText}
         </p>

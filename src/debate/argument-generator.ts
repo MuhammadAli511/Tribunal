@@ -27,7 +27,7 @@ const MODEL = "@cf/openai/gpt-oss-120b" as const;
 const SPEECH_RULES = `
 
 OUTPUT RULES — your response will be read aloud by a text-to-speech engine:
-- Write EXACTLY 1-2 short paragraphs, no more than 95 words total. Prioritize one strong point over breadth.
+- Write EXACTLY 1-2 short paragraphs, no more than 80 words total. Prioritize one strong point over breadth.
 - Use plain conversational English as if speaking in a courtroom.
 - NEVER use markdown, bold, italics, headers, bullet points, numbered lists, tables, or special characters like dashes, pipes, asterisks, or brackets.
 - NEVER cite sources, URLs, or study names.
@@ -102,7 +102,7 @@ function buildUserPrompt(
     }
   }
 
-  prompt += `\nYour Task: Provide your ${role} argument for round ${ctx.round}. Hard cap: 95 words or fewer. Plain text only.`;
+  prompt += `\nYour Task: Provide your ${role} argument for round ${ctx.round}. Hard cap: 80 words or fewer. Plain text only.`;
   return prompt;
 }
 
@@ -126,7 +126,7 @@ export async function generateArgument(
   const response = await ai.run(MODEL, {
     instructions: SYSTEM_PROMPTS[role],
     input: buildUserPrompt(role, caseCtx, historianCtx),
-    max_tokens: 220,
+    max_tokens: 150,
     temperature: 0.7,
     reasoning: { effort: "low" },
   } as Record<string, unknown>);

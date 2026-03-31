@@ -2,10 +2,10 @@
 
 import { useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AgentAvatar } from "@/components/shared/AgentAvatar";
 import { cn } from "@/lib/utils";
 import type { Argument } from "@/src/types";
 import { AGENT_LABELS } from "@/src/voice/voice-config";
+import { agentColor } from "@/components/shared/AgentAvatar";
 
 interface ArgumentFeedProps {
   arguments: Argument[];
@@ -24,30 +24,42 @@ export function ArgumentFeed({
 
   return (
     <ScrollArea className={cn("h-full", className)}>
-      <div className="flex flex-col gap-3 p-3">
+      <div className="flex flex-col gap-3.5 p-3">
         {args.length === 0 && (
-          <p className="py-8 text-center text-[11px] italic text-[#52504a]">
+          <p className="py-8 text-center font-mono text-[10px] italic text-[#52504a]">
             The debate has not yet begun.
           </p>
         )}
-        {args.map((arg) => (
-          <div key={arg.id}>
-            <div className="flex items-center gap-1.5 mb-1">
-              <AgentAvatar role={arg.role} size="sm" className="h-3.5 w-3.5 text-[7px]" />
-              <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-[#7a756c]">
-                {AGENT_LABELS[arg.role]} · R{arg.round}
-              </span>
-              {arg.rebuttalTargetId && (
-                <span className="font-mono text-[8px] italic text-[#52504a]">
-                  (rebuttal)
+        {args.map((arg, i) => {
+          const color = agentColor(arg.role);
+          return (
+            <div key={arg.id}>
+              <div className="mb-1 flex items-center gap-1.5">
+                <span
+                  className="h-[5px] w-[5px] shrink-0 rounded-full"
+                  style={{ background: color }}
+                />
+                <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-[#52504a]">
+                  {AGENT_LABELS[arg.role]} · R{arg.round}
                 </span>
-              )}
+                {arg.rebuttalTargetId && (
+                  <span className="font-mono text-[7px] italic text-[#3a3835]">
+                    (rebuttal)
+                  </span>
+                )}
+                <span className="ml-auto font-mono text-[7px] tabular-nums text-[#3a3835]">
+                  {String(i).padStart(2, "0")}:{String(i * 12).padStart(2, "0")}
+                </span>
+              </div>
+              <p
+                className="ml-[2px] border-l-[1.5px] pl-[11px] font-mono text-[10px] leading-[1.7] text-[#7a756c]"
+                style={{ borderColor: `${color}20` }}
+              >
+                {arg.text}
+              </p>
             </div>
-            <p className="pl-5 text-[10px] leading-relaxed text-[#a39e93]">
-              {arg.text}
-            </p>
-          </div>
-        ))}
+          );
+        })}
         <div ref={bottomRef} />
       </div>
     </ScrollArea>

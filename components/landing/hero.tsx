@@ -21,11 +21,11 @@ const item = {
   },
 };
 
-export function Hero() {
+export function Hero({ scrollY = 0 }: { scrollY?: number }) {
   const router = useRouter();
 
   return (
-    <section className="relative px-6 pt-28 pb-16">
+    <section className="relative overflow-hidden px-6 pt-28 pb-16">
       <div className="mx-auto grid max-w-5xl gap-12 md:grid-cols-2 md:items-center md:gap-8">
         {/* Left: Copy */}
         <motion.div
@@ -82,7 +82,8 @@ export function Hero() {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" as const }}
-          className="relative mx-auto flex h-[280px] w-[280px] items-center justify-center"
+          className="relative mx-auto flex h-[280px] w-[280px] items-center justify-center will-change-transform"
+          style={{ transform: `translateY(${scrollY * -0.15}px)` }}
         >
           {/* Glow */}
           <div className="absolute h-60 w-60 rounded-full bg-[radial-gradient(circle,rgba(237,233,225,0.03),transparent_70%)] animate-glow-pulse" />

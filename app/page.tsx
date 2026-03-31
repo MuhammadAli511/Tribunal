@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
 import { CourtPanel } from "@/components/landing/court-panel";
@@ -19,15 +19,25 @@ function Divider() {
 
 export default function HomePage() {
   const { setMood } = useAtmosphere();
+  const [scrollY, setScrollY] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMood("landing");
   }, [setMood]);
 
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   return (
-    <div className="min-h-svh">
+    <div ref={scrollRef} className="min-h-svh">
       <Navbar />
-      <Hero />
+      <Hero scrollY={scrollY} />
       <Divider />
       <CourtPanel />
       <Divider />
