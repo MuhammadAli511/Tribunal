@@ -113,15 +113,25 @@ export default function CourtroomPage() {
   const [crossExamOpen, setCrossExamOpen] = useState(false);
   const [crossExamQuestion, setCrossExamQuestion] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [userTranscript, setUserTranscript] = useState("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
+    // Wait until all queued audio has finished playing before showing the dialog
+    if (ttsPlaying || feed.pendingSpeaking.length > 0) return;
+
     const lastClarification = feed.clarifications[feed.clarifications.length - 1];
     if (lastClarification && !lastClarification.answer && feed.status === "cross-exam") {
       setCrossExamQuestion(lastClarification.question);
       setCrossExamOpen(true);
     }
-  }, [feed.clarifications, feed.status]);
+    // Auto-close dialog if status moves past cross-exam (e.g. user didn't answer in time)
+    if (crossExamOpen && feed.status !== "cross-exam") {
+      setCrossExamOpen(false);
+    }
+  }, [feed.clarifications, feed.status, crossExamOpen, ttsPlaying, feed.pendingSpeaking.length]);
 
   // Verdict reveal sequence
   useEffect(() => {
@@ -139,6 +149,13 @@ export default function CourtroomPage() {
 
   const handleCrossExamSubmit = useCallback(
     (response: string) => {
+      // Stop recorder if still running
+      if (mediaRecorderRef.current?.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+      mediaRecorderRef.current = null;
+      setIsRecording(false);
+
       fetch(`/api/cases/${caseId}/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -146,9 +163,73 @@ export default function CourtroomPage() {
       });
       setCrossExamOpen(false);
       setUserTranscript("");
+      // Immediately show deliberation state while waiting for round 2
+      feed.handleEvent({ type: "status_change", status: "deliberating" });
     },
-    [caseId],
+    [caseId, feed],
   );
+
+  const transcribeAndSubmit = useCallback(
+    async (chunks: Blob[]) => {
+      if (chunks.length === 0) return;
+      setIsTranscribing(true);
+      setUserTranscript("Transcribing...");
+      try {
+        const audioBlob = new Blob(chunks, { type: "audio/webm" });
+        const formData = new FormData();
+        formData.append("file", audioBlob, "recording.webm");
+
+        const res = await fetch("/api/transcribe", {
+          method: "POST",
+          body: formData,
+        });
+        const { text } = (await res.json()) as { text: string };
+        if (text?.trim()) {
+          handleCrossExamSubmit(text.trim());
+        } else {
+          setUserTranscript("");
+        }
+      } catch {
+        setUserTranscript("");
+      } finally {
+        setIsTranscribing(false);
+      }
+    },
+    [handleCrossExamSubmit],
+  );
+
+  const handleToggleRecording = useCallback(async () => {
+    if (isRecording) {
+      // Stop recording — onstop handler will transcribe & submit
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        // Stop all mic tracks
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+        mediaRecorderRef.current = null;
+        transcribeAndSubmit(chunksRef.current);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setUserTranscript("");
+    } catch {
+      setIsRecording(false);
+    }
+  }, [isRecording, transcribeAndSubmit]);
 
   const statusLabel: Record<string, string> = {
     intake: "Intake",
@@ -163,10 +244,16 @@ export default function CourtroomPage() {
     return args[args.length - 1]?.text;
   };
 
-  const isThinking = (role: AgentRole) =>
-    feed.status === "debating" &&
-    !feed.arguments.some((a) => a.role === role) &&
-    !audio.currentRole;
+  const isThinking = (role: AgentRole) => {
+    // During deliberation before round 2, show prosecutor as preparing
+    if (feed.status === "deliberating" && role === "prosecutor") return true;
+    // During normal debating, show agents that haven't argued yet
+    return (
+      feed.status === "debating" &&
+      !feed.arguments.some((a) => a.role === role) &&
+      !audio.currentRole
+    );
+  };
 
   return (
     <div className={`flex h-svh overflow-hidden ${shaking ? "animate-screen-shake" : ""}`}>
@@ -278,9 +365,9 @@ export default function CourtroomPage() {
         question={crossExamQuestion}
         isJudgeSpeaking={audio.currentRole === "judge"}
         isRecording={isRecording}
+        isTranscribing={isTranscribing}
         transcript={userTranscript}
-        onStartRecording={() => setIsRecording(true)}
-        onStopRecording={() => setIsRecording(false)}
+        onToggleRecording={handleToggleRecording}
         onSubmit={handleCrossExamSubmit}
       />
     </div>

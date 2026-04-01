@@ -56,6 +56,8 @@ export class CaseDO extends DurableObject<Env> {
         return this.handleBroadcastSentiment(request);
       case "GET /record":
         return this.handleGetRecord();
+      case "POST /set-status":
+        return this.handleSetStatus(request);
       case "GET /status":
         return json({ status: this.store.getStatus() });
       default:
@@ -162,6 +164,13 @@ export class CaseDO extends DurableObject<Env> {
   private async handleBroadcastSentiment(request: Request): Promise<Response> {
     const { role, score } = (await request.json()) as { role: AgentRole; score: number };
     this.broadcast({ type: "sentiment", role, score });
+    return json({ ok: true });
+  }
+
+  private async handleSetStatus(request: Request): Promise<Response> {
+    const { status } = (await request.json()) as { status: SessionStatus };
+    this.store.setStatus(status);
+    this.broadcast({ type: "status_change", status });
     return json({ ok: true });
   }
 

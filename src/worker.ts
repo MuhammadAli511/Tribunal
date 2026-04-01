@@ -278,6 +278,35 @@ async function handleSeed(request: Request, env: Env): Promise<Response> {
   return json({ seeded: cases.length });
 }
 
+/** POST /api/transcribe — ElevenLabs speech-to-text */
+async function handleTranscribe(request: Request, env: Env): Promise<Response> {
+  const formData = await request.formData();
+  const audioFile = formData.get("file") as File | null;
+  if (!audioFile) {
+    return errorJson("Missing audio file", 400);
+  }
+
+  const body = new FormData();
+  body.append("file", audioFile);
+  body.append("model_id", "scribe_v2");
+  body.append("language_code", "eng");
+
+  const res = await fetch("https://api.elevenlabs.io/v1/speech-to-text", {
+    method: "POST",
+    headers: { "xi-api-key": env.ELEVENLABS_API_KEY },
+    body,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("[Transcribe] ElevenLabs STT failed:", res.status, err);
+    return errorJson("Transcription failed", 502);
+  }
+
+  const result = (await res.json()) as { text: string };
+  return json({ text: result.text });
+}
+
 // ── API Router ──────────────────────────────────────────────────────────────
 
 async function handleApi(
@@ -343,6 +372,11 @@ async function handleApi(
   m = matchRoute(pathname, "/api/cases/:id/intake");
   if (m && method === "POST") {
     return handleIntake(env, m.params.id);
+  }
+
+  // POST /api/transcribe — speech-to-text via ElevenLabs Scribe
+  if (method === "POST" && pathname === "/api/transcribe") {
+    return handleTranscribe(request, env);
   }
 
   return errorJson("Not found", 404);

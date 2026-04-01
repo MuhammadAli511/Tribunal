@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,9 +17,9 @@ interface CrossExamDialogProps {
   question: string;
   isJudgeSpeaking: boolean;
   isRecording: boolean;
+  isTranscribing?: boolean;
   transcript: string;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
+  onToggleRecording: () => void;
   onSubmit: (response: string) => void;
 }
 
@@ -28,13 +28,18 @@ export function CrossExamDialog({
   question,
   isJudgeSpeaking,
   isRecording,
+  isTranscribing = false,
   transcript,
-  onStartRecording,
-  onStopRecording,
+  onToggleRecording,
   onSubmit,
 }: CrossExamDialogProps) {
   const [editedTranscript, setEditedTranscript] = useState("");
   const displayText = editedTranscript || transcript;
+
+  // Reset edited transcript when dialog opens with new question
+  useEffect(() => {
+    if (open) setEditedTranscript("");
+  }, [open]);
 
   return (
     <Dialog open={open}>
@@ -65,11 +70,15 @@ export function CrossExamDialog({
         <div className="flex flex-col items-center gap-3 py-2">
           <MicButton
             isRecording={isRecording}
-            onPress={onStartRecording}
-            onRelease={onStopRecording}
+            onPress={onToggleRecording}
+            onRelease={() => {}}
           />
           <p className="text-[10px] text-[#7a756c]">
-            {isRecording ? "Recording..." : "Hold to speak"}
+            {isTranscribing
+              ? "Transcribing..."
+              : isRecording
+                ? "Listening... tap to stop"
+                : "Tap to speak"}
           </p>
         </div>
 

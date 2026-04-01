@@ -120,6 +120,8 @@ function debateReducer(state: DebateState, action: DebateAction): DebateState {
           };
           return {
             ...state,
+            // Resume "debating" status if we were deliberating
+            status: state.status === "deliberating" ? "debating" : state.status,
             pendingSpeaking: [...state.pendingSpeaking, pending],
           };
         }

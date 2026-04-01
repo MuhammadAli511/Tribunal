@@ -179,7 +179,7 @@ IMPORTANT RULES — follow them in strict order:
   const isSessionLive = phase === "speaking" && status === "connected";
 
   return (
-    <div className="flex h-svh flex-col">
+    <div className="flex h-svh flex-col overflow-hidden">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-[#1f1e1b] px-6 py-3.5">
         <div className="flex items-center gap-2">
@@ -356,13 +356,6 @@ IMPORTANT RULES — follow them in strict order:
                         : "Listening — speak your decision"
                       : "Tap the mic to begin"}
                 </p>
-                {isSessionLive && transcript && (
-                  <DictationDisplay
-                    text={transcript}
-                    isActive={isSessionLive && !isSpeaking}
-                    className="mt-2 max-h-[60px] w-full overflow-hidden rounded-lg border border-[#1f1e1b] bg-[#1a1917] px-3 py-2"
-                  />
-                )}
                 {transcript && phase === "speaking" && (
                   <button
                     onClick={() => setPhase("ready")}

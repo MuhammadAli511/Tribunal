@@ -237,12 +237,22 @@ export class DebateWorkflow extends WorkflowEntrypoint<Env, DebateParams> {
     console.log("[Workflow] cross-exam question:", crossExamQuestion);
     await step.do("tts-cross-exam", () => speakArgument(judgeArg));
 
+    // Signal cross-exam status so the client opens the response dialog
+    await step.do("set-cross-exam-status", async () => {
+      await callDO(caseDO, "POST", "/set-status", { status: "cross-exam" });
+    });
+
     // ── Step 7: Wait for user response ────────────────────────────────────
     // The client will post the user's response to CaseDO via /user-response.
     // We sleep and then check if a response arrived.
 
     console.log("[Workflow] waiting 2min for user response...");
     await step.sleep("wait-for-user-response", "2 minutes");
+
+    // Signal deliberation so the client shows activity while round 2 generates
+    await step.do("set-deliberating-status", async () => {
+      await callDO(caseDO, "POST", "/set-status", { status: "deliberating" });
+    });
 
     const userResponse = await step.do("check-user-response", async () => {
       const record = (await callDO(caseDO, "GET", "/record")) as CaseRecord;
